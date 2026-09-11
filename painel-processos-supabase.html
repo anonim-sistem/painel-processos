@@ -1,0 +1,3628 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de Processos Trabalhistas</title>
+<!-- Dados jurídicos internos — nunca deve ser indexado por buscadores nem
+     aparecer em resultados de busca (Google, Bing etc.). -->
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- pdf.js foi removido: a leitura automática por IA agora envia o PDF
+     inteiro para a função /api/extract (que repassa para o Gemini), que lê o
+     PDF nativamente — não precisamos mais renderizar páginas nem extrair
+     texto no navegador. -->
+<!-- Cliente oficial do Supabase (build UMD, expõe window.supabase.createClient
+     num <script> comum — sem precisar de bundler/import). Versão fixada (2.x
+     mais recente estável na publicação); atualize o número se quiser uma
+     versão mais nova depois. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    /* Organic Minimal — paleta terrosa/suave */
+    --paper:#f7f4ee; --surface:#faf8f5; --surface-2:#f1eae0; --border:#ebe6dd; --border-soft:rgba(120,90,60,.10);
+    --ink:#2a2118; --ink-soft:#6b5d4f; --ink-faint:#a79a89;
+    --brand:#b86235; --brand-strong:#9a4f29; --brand-ink:#ffffff;
+    --accent:#7a8b6e; --accent-ink:#20261c; --accent-soft:#e6eadf;
+    --ok:#5b7a52; --ok-soft:#e7eee0; --warn:#b8853b; --warn-soft:#f6ebd8;
+    --danger:#b5533e; --danger-soft:#f5e3de; --info:#7c8fa6; --info-soft:#eaeef2;
+    --neutral:#8a8175; --neutral-soft:#efebe3;
+    --shadow-sm:0 2px 12px rgba(120,90,60,.08), 0 1px 2px rgba(120,90,60,.06);
+    --shadow-lg:0 26px 52px -22px rgba(90,65,40,.28), 0 8px 20px rgba(90,65,40,.08);
+    --radius:20px; --radius-lg:28px; --radius-full:999px;
+    --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+    --font-body:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      /* café/grafite quente — dark mode do Organic Minimal */
+      --paper:#1c1917; --surface:#292524; --surface-2:#332e2b; --border:#433c36; --border-soft:rgba(255,235,215,.07);
+      --ink:#f3ede6; --ink-soft:#c7baac; --ink-faint:#8f8172;
+      --brand:#d98552; --brand-strong:#c06b3a; --brand-ink:#241408;
+      --accent:#9cae8c; --accent-ink:#1b2116; --accent-soft:#2e3527;
+      --ok:#8fb37e; --ok-soft:#25341f; --warn:#e0ae68; --warn-soft:#3b2f18;
+      --danger:#e0836a; --danger-soft:#3b2118; --info:#9baac0; --info-soft:#262b33;
+      --neutral:#a79a89; --neutral-soft:#332e29;
+      --shadow-sm:0 2px 12px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.3);
+      --shadow-lg:0 28px 56px -22px rgba(0,0,0,.6), 0 8px 20px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#1c1917; --surface:#292524; --surface-2:#332e2b; --border:#433c36; --border-soft:rgba(255,235,215,.07);
+    --ink:#f3ede6; --ink-soft:#c7baac; --ink-faint:#8f8172;
+    --brand:#d98552; --brand-strong:#c06b3a; --brand-ink:#241408;
+    --accent:#9cae8c; --accent-ink:#1b2116; --accent-soft:#2e3527;
+    --ok:#8fb37e; --ok-soft:#25341f; --warn:#e0ae68; --warn-soft:#3b2f18;
+    --danger:#e0836a; --danger-soft:#3b2118; --info:#9baac0; --info-soft:#262b33;
+    --neutral:#a79a89; --neutral-soft:#332e29;
+    --shadow-sm:0 2px 12px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.3);
+    --shadow-lg:0 28px 56px -22px rgba(0,0,0,.6), 0 8px 20px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--font-body);
+    font-size:14.5px; line-height:1.56; -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0;}
+  .mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+  ::selection{background:var(--accent-soft);}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit; font-size:inherit; color:inherit;}
+  a{color:var(--info);}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px;}
+  body, .app, .topbar, .stat, .table-card, .modal-card, .modal-overlay, .panel, .overlay,
+  .empresa-summary, .empresa-card, .doc-folder, .doc-subfolder, .filters-panel, .toast, .filerow, .dropzone, .ai-banner, .pill, .hearing .tag,
+  .audiencia-badge, .proc-row, .btn, input, select, textarea, .tab-btn, .modal-row{
+    transition:background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+  }
+
+  /* ---------- layout shell ---------- */
+  .app{min-height:100vh; display:flex; flex-direction:column;}
+  .topbar{
+    position:sticky; top:0; z-index:20; background:var(--surface);
+    box-shadow:0 1px 0 var(--border-soft); padding:16px 28px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto;}
+  .brand .mark{
+    width:32px; height:32px; border-radius:14px; background:var(--brand);
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .brand .mark svg{width:16px; height:16px;}
+  .brand h1{font-size:19px; letter-spacing:.1px;}
+  .brand .sub{font-size:11.5px; color:var(--ink-faint); font-family:var(--font-body); display:block; margin-top:1px;}
+
+  .search{
+    display:flex; align-items:center; gap:8px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:var(--radius-full); padding:9px 16px;
+    min-width:220px; flex:1 1 220px; max-width:340px;
+  }
+  .search svg{flex:none; opacity:.55; width:15px; height:15px;}
+  .search input{background:none; border:none; outline:none; width:100%; color:var(--ink); font-size:13.5px;}
+
+  select.filter{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-full);
+    padding:9px 32px 9px 16px; font-size:13.5px; color:var(--ink); appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a79a89' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 14px center;
+  }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:7px; border:1px solid transparent;
+    border-radius:var(--radius-full); padding:9.5px 18px; font-size:13.5px; font-weight:600;
+    background:var(--surface-2); color:var(--ink); border-color:var(--border);
+    transition:filter .12s, transform .08s, background-color .15s, box-shadow .15s;
+  }
+  .btn:hover{filter:brightness(0.97); box-shadow:var(--shadow-sm);}
+  :root[data-theme="dark"] .btn:hover{filter:brightness(1.12);}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .btn:hover{filter:brightness(1.12);} }
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:var(--brand); color:var(--brand-ink); border-color:var(--brand);}
+  .btn.accent{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+  .btn.danger{background:var(--danger); color:#ffffff; border-color:var(--danger);}
+  .btn.danger-ghost{background:transparent; color:var(--danger); border-color:var(--danger-soft);}
+  .btn.ghost{background:transparent; border-color:var(--border);}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+  .btn svg{width:14px; height:14px; flex:none;}
+
+  main{padding:26px 28px 64px; max-width:1280px; margin:0 auto; width:100%;}
+
+  /* ---------- stats ---------- */
+  .stats{display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:26px;}
+  .stat{
+    background:var(--surface); border:none; border-radius:var(--radius-lg);
+    padding:24px 24px; box-shadow:var(--shadow-sm); transition:box-shadow .18s ease, transform .18s ease, background-color .18s ease;
+  }
+  /* Rótulo dos cards de estatística do topo ("Processos em aberto",
+     "Processos concluídos", "Total geral", "Gasto total real",
+     "Audiências…") — antes usava --ink-faint (o tom mais claro da paleta,
+     pensado para textos auxiliares discretos), o que deixava o rótulo quase
+     ilegível em telas com brilho baixo/luz forte. Agora usa --ink-soft (bem
+     mais contraste) e fonte maior/mais pesada, mantendo só o valor grande
+     abaixo como o elemento visualmente dominante do card.  */
+  .stat .label{font-size:13.5px; letter-spacing:.01em; color:var(--ink-soft); font-weight:700;}
+  .stat .value{font-family:var(--font-mono); font-size:27px; font-weight:500; margin-top:9px; letter-spacing:-.01em;}
+  .stat .hint{font-size:12px; color:var(--ink-soft); margin-top:5px;}
+  .stat.warn .value{color:var(--warn);}
+  .stat.accent .value{color:var(--accent);}
+  .stat.danger{background:var(--danger-soft);}
+  .stat.danger .value{color:var(--danger);}
+  .stat.danger .hint{color:var(--danger);}
+  .stat.clickable{cursor:pointer;}
+  .stat.clickable:hover, .stat.clickable:focus-visible{transform:translateY(-2px); box-shadow:var(--shadow-lg);}
+
+  /* ---------- stat detail modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(30,22,14,.45); backdrop-filter:blur(2px); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    opacity:0; pointer-events:none; transition:opacity .18s;
+  }
+  .modal-overlay.open{opacity:1; pointer-events:auto;}
+  .modal-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-lg); width:min(760px,100%); max-height:min(640px,88vh);
+    display:flex; flex-direction:column; transform:translateY(10px) scale(.99); transition:transform .18s ease;
+  }
+  .modal-overlay.open .modal-card{transform:translateY(0) scale(1);}
+  .modal-head{padding:22px 26px; border-bottom:1px solid var(--border-soft); display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex:none;}
+  .modal-head h2{font-size:17px;}
+  .modal-body{padding:6px 0; overflow-y:auto; flex:1;}
+  .modal-foot{padding:14px 26px; border-top:1px solid var(--border-soft); display:flex; justify-content:flex-end; gap:10px; flex:none; background:var(--surface);}
+  .modal-row{display:flex; align-items:center; gap:14px; padding:13px 26px; border-bottom:1px solid var(--border-soft); cursor:pointer;}
+  .modal-row:hover, .modal-row:focus-visible{background:var(--surface-2);}
+  .modal-row:last-child{border-bottom:none;}
+  .modal-row .who{flex:1; min-width:0;}
+  .modal-row .who .nm{font-size:13.5px; font-weight:600;}
+  .modal-row .who .sub{font-size:11.5px; color:var(--ink-faint); margin-top:1px;}
+  .modal-row .vals{display:flex; gap:18px; flex:none;}
+  .modal-row .vals b{font-family:var(--font-mono); font-size:12.5px; font-weight:500; display:block; text-align:right;}
+  .modal-row .vals span{font-size:11px; color:var(--ink-faint); display:block; text-align:right; margin-top:1px;}
+  /* Detalhe de auditoria em tópicos — um "• Campo: "antes" → "depois"" por
+     linha, em vez de uma frase só com todos os campos separados por ";". */
+  .audit-detalhe-list{list-style:none; margin:0; padding:0;}
+  .audit-detalhe-list li{margin-top:2px;}
+  .audit-detalhe-list li:first-child{margin-top:0;}
+  .modal-empty{padding:48px 26px; text-align:center; color:var(--ink-faint); font-size:13px;}
+
+  /* ---------- tabs ---------- */
+  .tabs-nav{display:flex; gap:28px; border-bottom:1px solid var(--border); margin-bottom:22px;}
+  .tab-btn{background:none; border:none; border-bottom:2px solid transparent; padding:4px 2px 13px; font-size:13.5px; font-weight:600; color:var(--ink-faint); margin-bottom:-1px;}
+  .tab-btn:hover{color:var(--ink);}
+  .tab-btn.active{color:var(--ink); border-bottom-color:var(--brand);}
+
+  /* ---------- advanced filters ---------- */
+  .filters-toggle{font-size:12.5px; font-weight:600; color:var(--brand); background:none; border:none; display:inline-flex; align-items:center; gap:5px; padding:4px 2px; margin:-8px 0 14px;}
+  .filters-toggle svg{width:12px; height:12px; transition:transform .15s;}
+  .filters-toggle.open svg{transform:rotate(180deg);}
+  .filters-panel{
+    display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:20px 22px; margin:-4px 0 20px; box-shadow:var(--shadow-sm);
+    grid-template-columns:1.1fr .8fr .7fr .7fr 1fr auto; gap:14px; align-items:end;
+  }
+  .filters-panel.open{display:grid;}
+  .filters-panel .fgroup label{margin-bottom:6px;}
+  .filters-panel .fgroup input, .filters-panel .fgroup select{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:9px 13px; font-size:13px; color:var(--ink); width:100%;
+  }
+  @media (max-width:1050px){ .filters-panel{grid-template-columns:1fr 1fr 1fr;} }
+  @media (max-width:900px){ .filters-panel{grid-template-columns:1fr 1fr;} }
+
+  /* ---------- resumo por empresa (cards + gráficos + accordion) ---------- */
+  .empresa-summary{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-sm); padding:24px 26px; margin-top:20px;
+  }
+  .empresa-summary h3{font-size:14.5px; margin-bottom:3px;}
+  .empresa-summary .sub{font-size:12px; color:var(--ink-faint);}
+
+  /* gráficos no topo: ranking de motivos + exposição financeira */
+  .charts-row{display:grid; grid-template-columns:1.3fr 1fr; gap:18px; margin-bottom:22px;}
+  .chart-card{background:var(--surface-2); border:1px solid var(--border-soft); border-radius:var(--radius-lg); padding:20px 22px;}
+  .chart-card h4{font-size:12.5px; font-weight:700; color:var(--ink-soft); letter-spacing:.01em; margin:0 0 15px;}
+  .motivo-rank{display:flex; flex-direction:column; gap:11px;}
+  .motivo-rank-row{display:flex; align-items:center; gap:10px; position:relative; cursor:default; border-radius:6px;}
+  .motivo-rank-row:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
+  .motivo-rank-row .mname{width:150px; flex:none; font-size:12px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .motivo-rank-row .mtrack{flex:1; background:var(--surface); border-radius:var(--radius-full); height:14px; overflow:hidden;}
+  .motivo-rank-row .mfill{height:100%; background:var(--accent); border-radius:var(--radius-full); min-width:3px; transition:width .35s ease;}
+  .motivo-rank-row .mval{width:22px; flex:none; text-align:right; font-family:var(--font-mono); font-size:12px; color:var(--ink);}
+  /* Tooltip/popover ao passar o mouse (ou focar via teclado) numa barra do
+     ranking de motivos: lista quais processos/funcionários compõem aquele
+     número. CSS puro (opacity+transform, sem lib), aparece acima da barra. */
+  .motivo-tooltip{
+    position:absolute; left:8px; bottom:calc(100% + 8px); z-index:30; min-width:220px; max-width:300px;
+    background:var(--ink); color:var(--surface); border-radius:var(--radius); padding:10px 13px;
+    box-shadow:0 8px 24px rgba(0,0,0,.22); opacity:0; visibility:hidden; transform:translateY(4px);
+    transition:opacity .15s ease, transform .15s ease, visibility .15s;
+    pointer-events:none;
+  }
+  .motivo-rank-row:hover .motivo-tooltip, .motivo-rank-row:focus-visible .motivo-tooltip, .motivo-rank-row:focus-within .motivo-tooltip{
+    opacity:1; visibility:visible; transform:translateY(0);
+  }
+  .motivo-tooltip-title{font-size:11.5px; font-weight:700; margin-bottom:6px;}
+  .motivo-tooltip ul{list-style:none; margin:0; padding:0; font-size:11.5px; line-height:1.5; opacity:.92;}
+  .motivo-tooltip ul li{white-space:normal;}
+  .donut-block{display:flex; align-items:center; gap:20px;}
+  .donut-ring{width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;}
+  .donut-center{width:82px; height:82px; border-radius:50%; background:var(--surface-2); display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .donut-center b{font-family:var(--font-mono); font-size:17px;}
+  .donut-center span{font-size:9.5px; color:var(--ink-faint); margin-top:2px; text-align:center; line-height:1.3;}
+  .donut-legend{display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;}
+  .donut-legend-row{display:flex; align-items:flex-start; gap:9px;}
+  .donut-swatch{width:11px; height:11px; border-radius:3px; flex:none; margin-top:3px;}
+  .donut-legend-info{flex:1; min-width:0;}
+  .donut-legend-label{font-size:11.5px; color:var(--ink-soft);}
+  .donut-legend-value{font-family:var(--font-mono); font-size:13.5px; font-weight:700; margin-top:1px;}
+  @media (max-width:900px){ .charts-row{grid-template-columns:1fr;} }
+  @media (max-width:480px){ .donut-block{flex-direction:column; align-items:flex-start;} }
+
+  .empresa-cards{display:flex; flex-direction:column; gap:10px; margin-top:16px;}
+  .empresa-card{
+    display:flex; align-items:center; gap:18px; padding:16px 20px; border:1px solid var(--border);
+    border-radius:var(--radius); background:var(--surface); cursor:pointer;
+    transition:box-shadow .15s, border-color .15s, transform .08s, background-color .15s;
+  }
+  .empresa-card:hover{box-shadow:var(--shadow-sm); border-color:var(--brand); background:var(--surface-2);}
+  .empresa-card:active{transform:translateY(1px);}
+  .empresa-card:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
+  .empresa-card.open{border-color:var(--brand); background:var(--surface-2); border-radius:var(--radius) var(--radius) 0 0;}
+  .empresa-card-left{flex:1; min-width:0;}
+  .empresa-card-name{font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .empresa-card-cnpj{font-size:11.5px; color:var(--ink-faint); font-family:var(--font-mono); margin:2px 0 9px;}
+  .empresa-card-progress-track{background:var(--surface-2); border-radius:var(--radius-full); height:8px; overflow:hidden; max-width:420px;}
+  .empresa-card-progress-fill{height:100%; background:var(--brand); border-radius:var(--radius-full); min-width:2px; transition:width .35s ease;}
+  .empresa-card-right{display:flex; gap:26px; flex:none;}
+  /* Rótulo pequeno no topo, valor/badge destacado embaixo — mesmo padrão dos
+     cards de estatística no topo da aba Processos (.stat .label / .stat .value). */
+  .empresa-metric{text-align:center; min-width:64px; display:flex; flex-direction:column; align-items:center;}
+  .empresa-metric-label{color:var(--ink-faint); display:block; text-align:center; font-size:10.5px; font-weight:600; letter-spacing:.02em; text-transform:uppercase;}
+  .empresa-metric b{font-family:var(--font-mono); font-size:15px; display:block; font-weight:700; margin-top:4px;}
+  .empresa-metric b.gasto-total{color:var(--brand-strong);}
+  .empresa-card-chevron{width:18px; height:18px; flex:none; color:var(--ink-faint); transition:transform .18s ease;}
+  .empresa-card.open .empresa-card-chevron{transform:rotate(90deg); color:var(--brand);}
+  .empresa-empty{font-size:12.5px; color:var(--ink-faint); padding:6px 0 2px;}
+
+  /* painel expansível (accordion) com os processos da empresa selecionada */
+  .empresa-detail{
+    background:var(--surface-2); border:1px solid var(--brand); border-top:none;
+    border-radius:0 0 var(--radius) var(--radius); padding:16px 20px 14px; cursor:default;
+  }
+  .empresa-detail-tabs{display:flex; gap:8px; margin-bottom:10px;}
+  .empresa-detail-tab{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-full); padding:6px 14px; font-size:12px; font-weight:700; color:var(--ink-soft);}
+  .empresa-detail-tab:hover{color:var(--ink);}
+  .empresa-detail-tab.active{background:var(--brand); color:var(--brand-ink); border-color:var(--brand);}
+  .empresa-detail-list{display:flex; flex-direction:column; gap:2px;}
+  .empresa-detail-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:11px 8px; border-radius:var(--radius); cursor:pointer;
+  }
+  .empresa-detail-row:hover, .empresa-detail-row:focus-visible{background:var(--surface);}
+  .empresa-detail-who{flex:1; min-width:0;}
+  .empresa-detail-name{font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .empresa-detail-who .pill{margin-top:5px;}
+  .empresa-detail-val{text-align:right; flex:none;}
+  .empresa-detail-val .empresa-metric-label{text-align:right;}
+  .empresa-detail-val b{font-family:var(--font-mono); font-size:13.5px; display:block; margin-top:3px;}
+  @media (max-width:760px){
+    .empresa-card{flex-direction:column; align-items:stretch; gap:12px;}
+    .empresa-card-progress-track{max-width:none;}
+    .empresa-card-right{justify-content:space-between; gap:10px;}
+    .empresa-card-chevron{display:none;}
+    .empresa-detail-row{flex-direction:column; align-items:flex-start; gap:4px;}
+    .empresa-detail-val{text-align:left;}
+    .empresa-detail-val .empresa-metric-label, .empresa-detail-val b{text-align:left;}
+  }
+
+  /* ---------- aba documentos (pastas por empresa / processo) ---------- */
+  .doc-folder, .doc-subfolder{border:1px solid var(--border); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; background:var(--surface);}
+  .doc-subfolder{margin:10px 14px 10px 14px; border-color:var(--border-soft);}
+  .doc-folder-summary, .doc-subfolder-summary{
+    display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; list-style:none;
+    font-size:13.5px;
+  }
+  .doc-folder-summary::-webkit-details-marker, .doc-subfolder-summary::-webkit-details-marker{display:none;}
+  .doc-folder-summary:hover, .doc-subfolder-summary:hover{background:var(--surface-2);}
+  .doc-folder-icon{width:30px; height:30px; border-radius:var(--radius); background:var(--brand-soft, var(--accent-soft)); color:var(--brand-strong); display:flex; align-items:center; justify-content:center; flex:none;}
+  .doc-folder-icon svg{width:16px; height:16px;}
+  .doc-folder-icon.small{width:26px; height:26px; background:var(--surface-2); color:var(--ink-soft);}
+  .doc-folder-icon.small svg{width:14px; height:14px;}
+  .doc-folder-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .doc-folder-name{font-weight:700; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .doc-subfolder-summary .doc-folder-name{font-weight:600; font-size:13px;}
+  .doc-folder-sub{font-size:11.5px; color:var(--ink-faint);}
+  .doc-folder-body{padding:0 16px 14px;}
+  .doc-file-list{padding:2px 16px 14px;}
+  .doc-file-empty{font-size:12px; color:var(--ink-faint); padding:4px 0;}
+  .doc-tag-pill{display:inline-block; margin-top:4px; font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:var(--radius-full); background:var(--accent-soft); color:var(--accent-ink); width:fit-content;}
+  .doc-tag-pill.none{background:var(--surface-2); color:var(--ink-faint);}
+  .ftag-select{margin-top:6px; font-size:11.5px; padding:4px 8px; border-radius:var(--radius-full); border:1px solid var(--border); background:var(--surface-2); color:var(--ink); max-width:200px;}
+
+  /* ---------- audiência alert badge (modal) ---------- */
+  .audiencia-badge{display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:var(--radius-full); font-size:12px; font-weight:600; white-space:nowrap;}
+  .audiencia-badge svg{width:12px; height:12px; flex:none;}
+  .audiencia-badge.urgent{background:var(--danger-soft); color:var(--danger);}
+  .audiencia-badge.soon{background:var(--warn-soft); color:var(--warn);}
+  .audiencia-badge.neutral{background:var(--neutral-soft); color:var(--neutral);}
+
+  /* ---------- lista de processos (cards flutuantes, sem tabela rígida) ---------- */
+  .table-card{background:none; border:none; box-shadow:none;}
+  .table-card .card-shell{background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);}
+  .table-scroll{overflow-x:auto; overflow-y:visible;}
+  /* 6 colunas do resumo: Funcionário | Empresa/CNPJ | Audiência | Valor da causa |
+     Status (interativo) | Motivo — o nº do processo saiu do resumo (fica só no
+     modal de edição) e a coluna de Motivo ganhou bem mais espaço. */
+  .proc-head{
+    display:grid; grid-template-columns:1.2fr 1.2fr .95fr .95fr 1.25fr 2.3fr; gap:18px;
+    padding:0 24px 12px; min-width:1040px;
+    font-size:12px; letter-spacing:.01em; color:var(--ink-faint); font-weight:600;
+  }
+  .proc-list{display:flex; flex-direction:column; gap:12px; min-width:1040px;}
+  .proc-row{
+    display:grid; grid-template-columns:1.2fr 1.2fr .95fr .95fr 1.25fr 2.3fr; gap:18px; align-items:center;
+    background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm);
+    padding:18px 24px; cursor:pointer; transition:box-shadow .15s ease, transform .15s ease, background-color .15s ease;
+  }
+  .proc-row:hover, .proc-row:focus-visible{box-shadow:var(--shadow-lg); transform:translateY(-2px);}
+  .proc-empty{padding:40px 24px; text-align:center; color:var(--ink-faint); background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-sm); min-width:1040px;}
+  .emp-name{font-weight:600;}
+  .cell-sub{font-size:12px; color:var(--ink-faint); margin-top:2px;}
+  /* Rótulo de campo mostrado só na versão em cards empilhados do mobile (ver
+     media query abaixo) — em telas largas a coluna já tem o cabeçalho da
+     tabela (.proc-head), então fica escondido. */
+  .mobile-field-label{display:none;}
+  /* Motivo agora tem bem mais largura (2.3fr) e mostra mais linhas antes de
+     cortar o texto — prioriza leitura completa em vez de truncar cedo. */
+  .reason-cell{color:var(--ink-soft); font-size:13px; line-height:1.5;}
+  .reason-cell p{margin:0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical;}
+  /* Motivo em tópicos: um <li> por frase, em vez do parágrafo corrido — mais
+     fácil de escanear rapidamente na tabela/cards. Mesmo clamp de 6 linhas
+     do parágrafo antigo, aplicado à lista inteira. */
+  .reason-cell ul.motivo-list{margin:0; padding:0 0 0 16px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical;}
+  .reason-cell ul.motivo-list li{margin:0 0 2px;}
+  .reason-cell ul.motivo-list li:last-child{margin-bottom:0;}
+  .value-cell{font-family:var(--font-mono); font-weight:500;}
+
+  .hearing{display:flex; align-items:center; gap:7px; flex-wrap:wrap;}
+  .hearing .dot{width:7px; height:7px; border-radius:50%; background:var(--neutral); flex:none;}
+  .hearing.urgent .dot{background:var(--danger);}
+  .hearing.soon .dot{background:var(--warn);}
+  .hearing .date{font-family:var(--font-mono);}
+  .hearing .tag{font-size:11px; padding:2px 9px; border-radius:var(--radius-full); margin-left:2px;}
+  .hearing.urgent .tag{background:var(--danger-soft); color:var(--danger);}
+  .hearing.soon .tag{background:var(--warn-soft); color:var(--warn);}
+
+  .pill{display:inline-flex; align-items:center; padding:4px 13px; border-radius:var(--radius-full); font-size:12px; font-weight:600; white-space:nowrap;}
+  .pill.st-separando_defesa{background:var(--info-soft); color:var(--info);}
+  .pill.st-aguardando_audiencia{background:var(--warn-soft); color:var(--warn);}
+  .pill.st-encerrado_acordo{background:var(--ok-soft); color:var(--ok);}
+  .pill.st-ganho{background:var(--ok-soft); color:var(--ok);}
+  .pill.st-perdido{background:var(--danger-soft); color:var(--danger);}
+  .pill.st-overdue{background:var(--danger-soft); color:var(--danger); font-weight:700;}
+  .pill.audit-criado{background:var(--ok-soft); color:var(--ok);}
+  .pill.audit-alterado{background:var(--info-soft); color:var(--info);}
+  .pill.audit-excluido{background:var(--danger-soft); color:var(--danger);}
+
+  /* Seletor de status direto na tabela — visualmente um "pill" clicável com
+     seta, mas é um <select> nativo de verdade (acessível via teclado/leitor
+     de tela, funciona em qualquer navegador sem JS extra de menu). Mudar o
+     valor aqui já grava o novo status na hora, sem abrir o modal. */
+  .status-select{
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    width:auto; max-width:100%; border:none; cursor:pointer;
+    padding:5px 28px 5px 13px; border-radius:var(--radius-full); font-size:12px; font-weight:600;
+    font-family:inherit; white-space:nowrap;
+    background-repeat:no-repeat; background-position:right 10px center; background-size:9px 6px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='currentColor' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+  .status-select.st-separando_defesa{background-color:var(--info-soft); color:var(--info);}
+  .status-select.st-aguardando_audiencia{background-color:var(--warn-soft); color:var(--warn);}
+  .status-select.st-encerrado_acordo{background-color:var(--ok-soft); color:var(--ok);}
+  .status-select.st-ganho{background-color:var(--ok-soft); color:var(--ok);}
+  .status-select.st-perdido{background-color:var(--danger-soft); color:var(--danger);}
+  .status-select:hover{filter:brightness(0.97);}
+  :root[data-theme="dark"] .status-select:hover{filter:brightness(1.15);}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .status-select:hover{filter:brightness(1.15);} }
+  .status-select:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .status-select option{color:initial; background:var(--surface); font-weight:400;}
+
+  .empty-state{padding:68px 24px; text-align:center; color:var(--ink-faint);}
+  .empty-state svg{width:34px; height:34px; opacity:.5; margin-bottom:10px;}
+  .empty-state h3{font-size:16px; color:var(--ink-soft); margin-bottom:4px;}
+
+  footer.note{max-width:1280px; margin:20px auto 0; padding:0 28px; font-size:12px; color:var(--ink-faint);}
+
+  /* ---------- overlay + panel ---------- */
+  .overlay{position:fixed; inset:0; background:rgba(30,22,14,.4); backdrop-filter:blur(2px); z-index:40; opacity:0; pointer-events:none; transition:opacity .18s;}
+  .overlay.open{opacity:1; pointer-events:auto;}
+  .panel{
+    position:fixed; top:0; right:0; height:100%; width:min(520px,100vw);
+    background:var(--surface); border-left:1px solid var(--border); box-shadow:var(--shadow-lg);
+    z-index:41; transform:translateX(100%); transition:transform .22s ease; display:flex; flex-direction:column;
+  }
+  .panel.open{transform:translateX(0);}
+  .panel-head{
+    padding:22px 26px; border-bottom:1px solid var(--border-soft); display:flex; align-items:flex-start;
+    justify-content:space-between; gap:12px; flex:none;
+  }
+  .panel-head h2{font-size:19px;}
+  .panel-head .close{background:none; border:none; color:var(--ink-faint); padding:7px; border-radius:var(--radius-full);}
+  .panel-head .close:hover{background:var(--surface-2); color:var(--ink);}
+  .panel-body{padding:24px 26px 90px; overflow-y:auto; flex:1;}
+  .panel-foot{
+    padding:16px 26px; border-top:1px solid var(--border-soft); display:flex; gap:10px;
+    justify-content:space-between; align-items:center; background:var(--surface); flex:none;
+  }
+
+  .dropzone{
+    border:1.5px dashed var(--border); border-radius:var(--radius-lg); padding:24px;
+    text-align:center; background:var(--surface-2); margin-bottom:24px; transition:border-color .12s, background .12s;
+  }
+  .dropzone.drag{border-color:var(--brand); background:var(--accent-soft);}
+  .dropzone svg{width:22px; height:22px; color:var(--ink-faint); margin-bottom:6px;}
+  .dropzone p{margin:0; font-size:13px; color:var(--ink-soft);}
+  .dropzone .small{font-size:11.5px; color:var(--ink-faint); margin-top:4px;}
+  .dropzone .browse{color:var(--brand); font-weight:600; text-decoration:underline; cursor:pointer;}
+  .dropzone.busy{opacity:.7; pointer-events:none;}
+
+  .field-group{margin-bottom:18px;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  label{display:block; font-size:13px; font-weight:700; color:var(--ink); margin-bottom:7px;}
+  label .opt{font-weight:400; color:var(--ink-faint);}
+  input[type=text],input[type=date],input[type=number],select,textarea{
+    width:100%; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:11px 15px; color:var(--ink); font-size:13.5px;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--brand);}
+  textarea{resize:vertical; min-height:64px; font-family:var(--font-body); border-radius:var(--radius);}
+  .field-ai{position:relative;}
+  .field-ai.filled{box-shadow:0 0 0 1px var(--brand) inset;}
+  .checkline{display:flex; align-items:center; gap:8px; margin-bottom:18px;}
+  .checkline input{width:auto;}
+  .checkline label{margin:0; font-size:13px; color:var(--ink);}
+
+  .section-title{font-size:13px; letter-spacing:.01em; color:var(--ink-soft); font-weight:700; margin:26px 0 12px;}
+  .section-title:first-child{margin-top:0;}
+
+  .filelist{display:flex; flex-direction:column; gap:9px;}
+  .filerow{
+    display:flex; align-items:center; gap:10px; padding:11px 14px; background:var(--surface-2);
+    border:1px solid var(--border); border-radius:var(--radius);
+  }
+  .filerow .ficon{width:28px; height:28px; border-radius:var(--radius-full); background:var(--brand); color:var(--brand-ink); display:flex; align-items:center; justify-content:center; flex:none;}
+  .filerow .ficon svg{width:14px; height:14px;}
+  .filerow .finfo{flex:1; min-width:0;}
+  .filerow .fname{font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .filerow .fmeta{font-size:11px; color:var(--ink-faint);}
+  .filerow .facts{display:flex; gap:4px; flex:none;}
+  .iconbtn{background:none; border:none; padding:6px; border-radius:var(--radius-full); color:var(--ink-faint); display:flex;}
+  .iconbtn:hover{background:var(--border-soft); color:var(--ink);}
+  .iconbtn svg{width:15px; height:15px;}
+  .upload-progress{font-size:12px; color:var(--ink-faint); margin-top:6px;}
+
+  .ai-banner{
+    display:flex; align-items:center; gap:10px; background:var(--info-soft); color:var(--info);
+    border-radius:var(--radius); padding:12px 16px; font-size:12.5px; margin-bottom:20px;
+  }
+  .ai-banner.warn{background:var(--danger-soft); color:var(--danger);}
+  .ai-banner svg{width:16px; height:16px; flex:none;}
+
+  /* Selo de pendência pós-audiência — audiência já passou (ontem ou antes) e
+     nenhum campo de resultado (condenação, honorários ou acordo) foi
+     preenchido ainda. Em destaque de propósito: cor de alerta cheia (não a
+     versão "soft" mais discreta) + borda lateral, tanto no card/linha da
+     tabela quanto no topo do modal de edição. */
+  .hearing-pending-alert{
+    display:flex; align-items:center; gap:8px; background:var(--danger-soft); color:var(--danger);
+    border:1px solid var(--danger); border-left-width:4px; border-radius:var(--radius);
+    padding:11px 14px; font-size:12.5px; font-weight:700; margin-bottom:20px;
+  }
+  .pill.st-pending-result{background:var(--danger); color:#fff; font-weight:700;}
+
+  /* Alerta de recorrência do advogado, sob o campo "Advogado responsável" —
+     pílula retrátil: fechada mostra só "⚠️ Advogado recorrente (N)", clicar
+     expande suavemente o detalhamento nominal completo. */
+  .advogado-alert{ display:none; margin-top:8px; }
+  .advogado-alert-toggle{
+    display:flex; align-items:center; gap:6px; width:auto; border:none; cursor:pointer;
+    background:var(--warn-soft); color:var(--warn); padding:6px 14px; border-radius:var(--radius-full);
+    font-size:12px; font-weight:700; font-family:inherit;
+  }
+  .advogado-alert-toggle:hover{filter:brightness(0.97);}
+  :root[data-theme="dark"] .advogado-alert-toggle:hover{filter:brightness(1.15);}
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .advogado-alert-toggle:hover{filter:brightness(1.15);} }
+  .advogado-alert-toggle svg{width:10px; height:10px; flex:none; transition:transform .18s ease;}
+  .advogado-alert.open .advogado-alert-toggle svg{transform:rotate(180deg);}
+  .advogado-alert-toggle:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  /* Truque de acordeão com CSS Grid: anima a altura de 0 até o conteúdo real
+     sem precisar saber a altura de antemão (funciona com qualquer nº de nomes). */
+  .advogado-alert-detail{
+    display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease;
+  }
+  .advogado-alert.open .advogado-alert-detail{ grid-template-rows:1fr; }
+  .advogado-alert-detail-inner{
+    overflow:hidden; min-height:0;
+  }
+  .advogado-alert-detail-inner p{
+    margin:6px 0 0; padding:8px 12px; background:var(--warn-soft); color:var(--warn);
+    border-radius:var(--radius); font-size:12px; font-weight:600; line-height:1.4;
+  }
+  .spin{animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---------- toasts ---------- */
+  .toasts{position:fixed; top:16px; right:16px; z-index:60; display:flex; flex-direction:column; gap:8px; width:min(340px,90vw);}
+  .toast{
+    background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--info);
+    border-radius:var(--radius); padding:12px 16px; box-shadow:var(--shadow-lg); font-size:13px; color:var(--ink);
+    animation:slidein .15s ease;
+  }
+  .toast.err{border-left-color:var(--danger);}
+  .toast.ok{border-left-color:var(--ok);}
+  @keyframes slidein{from{opacity:0; transform:translateX(8px);} to{opacity:1; transform:translateX(0);}}
+
+  .confirm-inline{display:flex; align-items:center; gap:8px;}
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle{padding:9.5px; width:38px; height:38px; justify-content:center;}
+  .theme-toggle svg{width:16px; height:16px;}
+
+  @media (max-width:760px){
+    main{padding:18px 14px 90px;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .field-row{grid-template-columns:1fr;}
+
+    /* Tabela de processos -> cards empilhados verticalmente: cada linha vira
+       um bloco de largura cheia, com o rótulo de cada campo (mobile-field-label)
+       aparecendo acima do valor — a mesma informação de .proc-head, só que
+       repetida por linha em vez de numa única linha de cabeçalho que forçaria
+       rolagem horizontal. */
+    .table-scroll{overflow-x:visible;}
+    .proc-head{display:none;}
+    .proc-list, .proc-row, .proc-empty{min-width:0;}
+    .proc-row{
+      display:flex; flex-direction:column; align-items:stretch; gap:12px;
+      padding:16px 16px;
+    }
+    .proc-row:hover, .proc-row:focus-visible{transform:none;}
+    .proc-row > div{width:100%;}
+    .mobile-field-label{
+      display:block; font-size:10px; font-weight:700; letter-spacing:.03em;
+      text-transform:uppercase; color:var(--ink-faint); margin-bottom:3px;
+    }
+    .value-cell{font-size:15px;}
+    .reason-cell p, .reason-cell ul.motivo-list{-webkit-line-clamp:4;}
+
+    /* Modal de edição de processo -> bottom sheet: sobe do rodapé da tela em
+       vez de deslizar da direita, com cantos superiores arredondados e uma
+       "alça" decorativa; o rodapé com os botões (.panel-foot) já fica sempre
+       visível graças ao layout flex existente (.panel-body rola, .panel-foot
+       não), então nenhuma mudança de JS é necessária pra isso. */
+    .panel{
+      top:auto; left:0; right:0; bottom:0; width:100%; height:92vh; max-height:92vh;
+      border-left:none; border-top:1px solid var(--border);
+      border-radius:20px 20px 0 0; transform:translateY(100%);
+    }
+    .panel.open{transform:translateY(0);}
+    .panel-head{position:relative; padding-top:28px;}
+    .panel-head::before{
+      content:""; position:absolute; top:10px; left:50%; transform:translateX(-50%);
+      width:38px; height:4px; border-radius:var(--radius-full); background:var(--border);
+    }
+    .panel-foot{flex-wrap:wrap; padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
+    .panel-foot .btn{flex:1; justify-content:center;}
+
+    /* Modais (estatística, auditoria) -> mesmo tratamento de bottom sheet. */
+    .modal-overlay{align-items:flex-end; padding:0;}
+    .modal-card{width:100%; max-height:90vh; border-radius:20px 20px 0 0;}
+    .modal-foot{padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
+    .modal-foot .btn{flex:1; justify-content:center;}
+  }
+
+  .count-badge{
+    display:inline-block; margin-left:6px; padding:1px 8px; border-radius:var(--radius-full);
+    background:var(--surface-2); color:var(--ink-faint); font-size:11px; font-weight:700; vertical-align:1px;
+  }
+  .tab-btn.active .count-badge{background:var(--accent-soft); color:var(--accent-ink);}
+  .subtab-btn.active .count-badge{background:var(--accent-soft); color:var(--accent-ink);}
+
+  /* ---------- sub-abas "Em andamento" / "Encerrados", estilo Notion:
+     grupo segmentado com fundo neutro, o item ativo vira uma "pílula" clara
+     com sombra leve — fica logo acima da tabela, abaixo das métricas e dos
+     filtros avançados. ---------- */
+  .subtabs{
+    display:inline-flex; gap:2px; background:var(--surface-2); border:1px solid var(--border);
+    padding:3px; border-radius:var(--radius-full); margin:0 0 16px;
+  }
+  .subtab-btn{
+    border:none; background:none; padding:7px 18px; border-radius:var(--radius-full);
+    font-size:13px; font-weight:600; color:var(--ink-faint); cursor:pointer;
+    transition:background-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .subtab-btn:hover{color:var(--ink);}
+  .subtab-btn.active{background:var(--surface); color:var(--ink); box-shadow:var(--shadow-sm);}
+  .subtab-btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  /* ---------- tela de login (Supabase Auth) ---------- */
+  .login-screen{
+    position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+    background:var(--paper); padding:20px;
+  }
+  .login-card{
+    width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:34px 30px 28px;
+  }
+  .login-card .mark{
+    width:44px; height:44px; border-radius:var(--radius-full); background:var(--brand);
+    display:flex; align-items:center; justify-content:center; margin:0 auto 16px;
+  }
+  .login-card h1{font-family:var(--font-display); font-size:22px; font-weight:600; text-align:center; margin:0 0 4px;}
+  .login-card .sub{display:block; text-align:center; color:var(--ink-soft); font-size:13px; margin-bottom:22px;}
+  .login-field{margin-bottom:14px;}
+  .login-field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+  .login-field input{
+    width:100%; border:1px solid var(--border); background:var(--paper); border-radius:var(--radius-full);
+    padding:11px 18px; font-size:14px; font-family:var(--font-body); color:var(--ink);
+  }
+  .login-field input:focus{outline:2px solid var(--brand); outline-offset:1px;}
+  .login-error{
+    background:var(--danger-soft); color:var(--danger); border-radius:12px; padding:10px 14px;
+    font-size:12.5px; font-weight:600; margin-bottom:14px; display:none;
+  }
+  .login-card .btn.primary{width:100%; justify-content:center; margin-top:4px;}
+  .login-card .btn.primary[disabled]{opacity:.6; cursor:default;}
+  .login-note{margin-top:18px; font-size:11.5px; color:var(--ink-faint); text-align:center; line-height:1.5;}
+  .login-config-warn{
+    background:var(--warn-soft); color:var(--warn); border-radius:12px; padding:11px 14px;
+    font-size:12px; font-weight:600; margin-bottom:16px; line-height:1.5;
+  }
+
+  /* ---------- menu de conta / selo de perfil (ADM / Operador) ---------- */
+  .user-menu{position:relative;}
+  .role-badge{
+    font-size:10px; font-weight:700; letter-spacing:.02em; padding:2px 8px; border-radius:var(--radius-full);
+    background:var(--accent-soft); color:var(--accent-ink); text-transform:uppercase; margin-left:2px;
+  }
+  .role-badge.adm{background:var(--brand); color:var(--brand-ink);}
+  .user-dropdown{
+    position:absolute; top:calc(100% + 8px); right:0; width:230px; background:var(--surface);
+    border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-lg); padding:14px 16px;
+    z-index:80; display:none;
+  }
+  .user-dropdown.open{display:block;}
+  .user-dropdown .who{font-size:13px; font-weight:600; color:var(--ink); word-break:break-all; margin-bottom:2px;}
+  .user-dropdown .role-line{font-size:12px; color:var(--ink-soft); margin-bottom:12px;}
+  .user-dropdown .btn{width:100%; justify-content:center;}
+</style>
+</head>
+<body>
+<script>
+  // Aplica o tema salvo (se houver) antes do restante da página ser desenhado,
+  // para evitar um "flash" trocando de tema logo após o carregamento.
+  (function(){
+    try{
+      var saved = localStorage.getItem("ptw_theme");
+      if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+    }catch(e){}
+  })();
+</script>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8"><path d="M12 3v3M5 8l7-3 7 3M4 8h16M6 8v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8M9 21h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+    <h1>Painel de Processos</h1>
+    <span class="sub">Entre com sua conta para continuar</span>
+    <div class="login-config-warn" id="loginConfigWarn" style="display:none;">
+      O painel ainda não está conectado a um projeto Supabase. Preencha SUPABASE_URL e SUPABASE_ANON_KEY no topo do arquivo (veja SETUP-SUPABASE.md) antes de publicar.
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <form id="loginForm">
+      <div class="login-field">
+        <label for="loginEmail">E-mail</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="login-field">
+        <label for="loginPassword">Senha</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button class="btn primary" id="btnLogin" type="submit">Entrar</button>
+    </form>
+    <div class="login-note">Acesso somente para usuários cadastrados pelo administrador do painel — não há autocadastro. Fale com o administrador se precisar de uma conta.</div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M12 3v3M5 8l7-3 7 3M4 8h16M6 8v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8M9 21h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <h1>Painel de Processos</h1>
+        <span class="sub">Trabalhistas &middot; acompanhamento interno</span>
+      </div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+      <input id="searchInput" type="text" placeholder="Buscar por funcionário, CNPJ ou nº do processo">
+    </div>
+    <select id="statusFilter" class="filter">
+      <option value="">Todos os status</option>
+    </select>
+    <button class="btn ghost theme-toggle" id="btnThemeToggle" type="button" title="Alternar entre modo claro e escuro" aria-label="Alternar entre modo claro e escuro">
+      <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.4M12 19.6V22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M2 12h2.4M19.6 12H22M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7" stroke-linecap="round"/></svg>
+    </button>
+    <div class="user-menu">
+      <button class="btn ghost" id="btnUserId" type="button" title="Sua conta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2" stroke-linecap="round"/></svg>
+        <span id="userIdLabel">Conta</span>
+      </button>
+      <div class="user-dropdown" id="userDropdown">
+        <div class="who" id="userDropdownEmail">—</div>
+        <div class="role-line" id="userDropdownRole">—</div>
+        <button class="btn ghost" id="btnLogout" type="button">Sair</button>
+      </div>
+    </div>
+    <button class="btn primary" id="btnNewCase">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+      Novo processo
+    </button>
+  </div>
+
+  <main>
+    <div class="tabs-nav" id="tabsNav">
+      <button class="tab-btn active" data-tab="geral" type="button">Processos</button>
+      <button class="tab-btn" data-tab="empresa" type="button">Resumo por Empresa</button>
+      <button class="tab-btn" data-tab="documentos" type="button">Documentos</button>
+    </div>
+
+    <div class="tab-panel" id="tabGeral">
+      <div class="stats" id="statsRow"></div>
+      <button class="filters-toggle" id="btnToggleFilters" type="button">
+        <span id="filtersToggleLabel">Filtros avançados</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="filters-panel" id="filtersPanel">
+        <div class="fgroup">
+          <label for="filterEmpresaCnpj">Empresa / CNPJ</label>
+          <input type="text" id="filterEmpresaCnpj" placeholder="Nome da empresa ou CNPJ">
+        </div>
+        <div class="fgroup">
+          <label for="filterStatusAvancado">Status</label>
+          <select id="filterStatusAvancado">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="fgroup">
+          <label for="filterDateField">Filtrar data de</label>
+          <select id="filterDateField">
+            <option value="dataAudiencia">Audiência</option>
+            <option value="dataAbertura">Ajuizamento</option>
+          </select>
+        </div>
+        <div class="fgroup">
+          <label for="filterDateFrom">De</label>
+          <input type="date" id="filterDateFrom">
+        </div>
+        <div class="fgroup">
+          <label for="filterDateTo">Até</label>
+          <input type="date" id="filterDateTo">
+        </div>
+        <div class="fgroup">
+          <label for="filterTipoDesligamento">Motivo de desligamento</label>
+          <select id="filterTipoDesligamento">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="fgroup">
+          <button class="btn ghost" id="btnClearFilters" type="button" style="width:100%;">Limpar filtros</button>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin:-10px 0 14px;">
+        <button class="btn ghost" id="btnAuditLog" type="button" title="Quem cadastrou, alterou ou excluiu cada processo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Log de auditoria
+        </button>
+        <button class="btn ghost" id="btnExportProcessos" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Exportar CSV
+        </button>
+      </div>
+
+      <!-- Sub-abas estilo Notion: alternam a MESMA tabela abaixo entre "Em
+           andamento" (separando defesa / aguardando audiência) e "Encerrados"
+           (encerrado com acordo / ganho / perdido) — ficam logo acima da
+           tabela, abaixo das métricas e dos filtros avançados. -->
+      <div class="subtabs" id="processScopeTabs" role="tablist" aria-label="Filtrar processos por situação">
+        <button class="subtab-btn active" data-scope="ativos" type="button" id="subtabAtivos" role="tab" aria-selected="true">Em andamento</button>
+        <button class="subtab-btn" data-scope="encerrados" type="button" id="subtabEncerrados" role="tab" aria-selected="false">Encerrados</button>
+      </div>
+
+      <div class="table-card">
+        <div id="loadingState" class="empty-state card-shell">
+          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-3-6.7" stroke-linecap="round"/></svg>
+          <h3>Carregando processos…</h3>
+          <p>Conectando ao painel compartilhado.</p>
+        </div>
+        <div class="table-scroll" id="tableScroll" style="display:none;">
+          <div class="proc-head">
+            <span>Funcionário</span>
+            <span>Empresa / CNPJ</span>
+            <span>Audiência</span>
+            <span>Valor da causa</span>
+            <span>Status</span>
+            <span>Motivo</span>
+          </div>
+          <div class="proc-list" id="tableBody"></div>
+        </div>
+        <div id="emptyState" class="empty-state card-shell" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12h6M9 16h6M9 8h6M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/></svg>
+          <h3 id="emptyStateTitle">Nenhum processo cadastrado</h3>
+          <p id="emptyStateSub">Clique em &ldquo;Novo processo&rdquo; para começar a organizar os casos.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tabEmpresa" style="display:none;">
+      <div class="empresa-summary" id="empresaSummary" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap;">
+          <div>
+            <h3>Resumo por empresa</h3>
+            <div class="sub">Processos ativos, encerrados e gasto real total (acordo ou condenação judicial + honorários) de cada empresa. Clique num card para ver os processos dela aqui mesmo.</div>
+          </div>
+          <button class="btn ghost" id="btnExportCnpj" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+
+        <div class="charts-row">
+          <div class="chart-card">
+            <h4>Motivos mais recorrentes</h4>
+            <div id="motivoRankChart" class="motivo-rank"></div>
+          </div>
+          <div class="chart-card">
+            <h4>Exposição financeira: risco ativo × impacto real</h4>
+            <div id="exposureDonut"></div>
+          </div>
+        </div>
+
+        <div class="empresa-cards" id="empresaCards"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tabDocumentos" style="display:none;">
+      <div class="empresa-summary">
+        <h3>Documentos e peças</h3>
+        <div class="sub">Repositório de documentos organizado por empresa (CNPJ) e, dentro de cada uma, por funcionário/processo.</div>
+        <div id="documentosTree" style="margin-top:16px;"></div>
+        <div id="documentosEmptyState" class="empresa-empty" style="display:none;">Nenhum processo cadastrado ainda — os documentos anexados aparecem aqui organizados por empresa e processo.</div>
+      </div>
+    </div>
+
+    <footer class="note">Arquivos de até 15&nbsp;MB por documento. Acesso controlado pelo menu de compartilhamento: pessoas convidadas como leitoras só visualizam; convidadas como editoras podem cadastrar, alterar e anexar arquivos. Toda alteração fica no log de auditoria acima.</footer>
+  </main>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="panel" id="panel">
+  <div class="panel-head">
+    <h2 id="panelTitle">Novo processo</h2>
+    <button class="close" id="btnClosePanel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-foot" id="panelFoot"></div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="modal-overlay" id="statModalOverlay">
+  <div class="modal-card">
+    <div class="panel-head modal-head">
+      <h2 id="statModalTitle">Detalhamento</h2>
+      <button class="close" id="btnCloseStatModal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="statModalBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="auditModalOverlay">
+  <div class="modal-card">
+    <div class="panel-head modal-head">
+      <div>
+        <h2>Log de auditoria</h2>
+        <p style="margin:4px 0 0; font-size:12px; color:var(--ink-faint); font-weight:400;">Quem cadastrou, alterou ou excluiu cada processo — últimos 200 registros, mais recentes primeiro.</p>
+      </div>
+      <button class="close" id="btnCloseAuditModal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="auditModalBody"></div>
+    <div class="modal-foot" id="auditModalFoot">
+      <button class="btn ghost" id="btnExportAuditLog" type="button" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Exportar log (CSV)
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================= constants ============================= */
+var STATUS = [
+  {id:"separando_defesa", label:"Separando defesa"},
+  {id:"aguardando_audiencia", label:"Aguardando audiência"},
+  {id:"encerrado_acordo", label:"Encerrado (com acordo)"},
+  {id:"perdido", label:"Perdido"},
+  {id:"ganho", label:"Ganho"}
+];
+var STATUS_LABEL = {}; STATUS.forEach(function(s){ STATUS_LABEL[s.id]=s.label; });
+// A process counts as "concluded" once it has reached a resolution — settled,
+// won, or lost. "separando_defesa" and "aguardando_audiencia" are still
+// active/open.
+var CONCLUDED_STATUSES = {encerrado_acordo:true, perdido:true, ganho:true};
+// Prazo vencido: só se aplica a processos ainda ativos ("Separando defesa" ou
+// "Aguardando audiência") cuja data de audiência já passou — um processo já
+// concluído não tem "prazo" pendente, então nunca leva esta tag.
+var OVERDUE_ELIGIBLE_STATUSES = {separando_defesa:true, aguardando_audiencia:true};
+function isOverdueCase(c){
+  return !!(c && OVERDUE_ELIGIBLE_STATUSES[c.status] && c.dataAudiencia && c.dataAudiencia < todayISO());
+}
+// Alerta de pendência pós-audiência (100% gratuito — só front-end, sem custo
+// de serviço externo): a audiência já aconteceu (ontem ou antes; hoje ainda
+// não conta como "passou") e nenhum dos três campos de resultado foi
+// preenchido — nem condenação, nem honorários, nem confirmação de acordo.
+// Independe do status do processo: mesmo um caso já marcado como concluído,
+// se ninguém preencheu nenhum resultado, ainda está "pendente" de dados.
+function needsHearingResultUpdate(c){
+  if (!c || !c.dataAudiencia) return false;
+  if (c.dataAudiencia >= todayISO()) return false;
+  var hasResult = (c.valorCondenacao != null && c.valorCondenacao !== "") ||
+                   (c.honorariosAdvocaticios != null && c.honorariosAdvocaticios !== "") ||
+                   !!c.teveAcordo;
+  return !hasResult;
+}
+
+/* =============================================================================
+ * E-mail de pendência pós-audiência — estrutura pronta para a API gratuita da
+ * Resend (https://resend.com), 3.000 e-mails/mês sem custo, sem precisar de
+ * SMTP próprio nem de um serviço pago.
+ *
+ * IMPORTANTE — por que isto está DESATIVADO (função no-op) neste Artefato:
+ * este painel roda 100% no navegador da pessoa (client-side), sem backend
+ * próprio. A API da Resend exige uma "API key" secreta no cabeçalho
+ * Authorization — colocá-la aqui no código-fonte a deixaria visível a
+ * qualquer um que abra "ver código-fonte" da página, permitindo que
+ * qualquer pessoa envie e-mails em nome da sua conta Resend. Por isso o
+ * disparo real de e-mail exige um pequeno proxy server-side (ex.: uma
+ * Cloudflare Worker, uma Vercel/Netlify Function, ou uma Cloud Function),
+ * gratuito nos planos free desses serviços, que guarda a API key como
+ * variável de ambiente e apenas repassa a chamada para a Resend.
+ *
+ * Passo a passo para ativar de verdade (fora deste Artefato):
+ *   1. Criar conta grátis em https://resend.com e gerar uma API key.
+ *   2. Publicar um endpoint HTTP simples (qualquer plataforma serverless
+ *      gratuita) que receba {to, subject, html} e faça, no SERVIDOR:
+ *
+ *        POST https://api.resend.com/emails
+ *        Headers: { "Authorization": "Bearer " + RESEND_API_KEY,
+ *                   "Content-Type": "application/json" }
+ *        Body: { "from": "Painel de Processos <notificacoes@seudominio.com>",
+ *                "to": [to], "subject": subject, "html": html }
+ *
+ *   3. Trocar EMAIL_NOTIFY_ENDPOINT abaixo pela URL desse endpoint.
+ *   4. Chamar sendHearingResultPendingEmail(caso, destinatario) — por
+ *      exemplo, disparado uma vez ao dia para cada processo em que
+ *      needsHearingResultUpdate(c) é true.
+ * ========================================================================= */
+var EMAIL_NOTIFY_ENDPOINT = null; // ex.: "https://seu-proxy.workers.dev/notify" — null = desativado
+function buildHearingPendingEmailPayload(c, toEmail){
+  var subject = "Pendência: atualizar resultado da audiência — " + (c.funcionario || "processo sem nome");
+  var html =
+    "<p>O processo de <b>" + escapeHtml(c.funcionario||"—") + "</b> (nº " + escapeHtml(c.numeroProcesso||"—") + ") " +
+    "teve audiência em " + escapeHtml(fmtDateBR(c.dataAudiencia)) + " e ainda não teve o resultado registrado " +
+    "(valor da condenação, honorários ou confirmação de acordo).</p>" +
+    "<p>Acesse o painel para atualizar.</p>";
+  return {to: toEmail, subject: subject, html: html};
+}
+async function sendHearingResultPendingEmail(c, toEmail){
+  if (!EMAIL_NOTIFY_ENDPOINT){
+    // Sem endpoint configurado (ver comentário acima) — no-op silencioso,
+    // não é um erro: o alerta visual no card/modal já cobre o aviso.
+    return {sent:false, reason:"EMAIL_NOTIFY_ENDPOINT não configurado"};
+  }
+  try{
+    var payload = buildHearingPendingEmailPayload(c, toEmail);
+    var res = await fetch(EMAIL_NOTIFY_ENDPOINT, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    return {sent: res.ok};
+  }catch(e){
+    console.error("falha ao enviar e-mail de pendência", e);
+    return {sent:false, reason:String(e)};
+  }
+}
+var TIPO_DESLIGAMENTO = [
+  {id:"", label:"— não informado —"},
+  {id:"sem_justa_causa", label:"Demissão sem justa causa"},
+  {id:"pedido_demissao", label:"Pedido de demissão"},
+  {id:"acordo_partes", label:"Acordo entre as partes"},
+  {id:"justa_causa", label:"Justa causa"}
+];
+var TIPO_DESLIGAMENTO_LABEL = {}; TIPO_DESLIGAMENTO.forEach(function(s){ if (s.id) TIPO_DESLIGAMENTO_LABEL[s.id]=s.label; });
+var MAX_FILE_BYTES = 15*1024*1024;
+
+/* ============================= configuração do Supabase ============================= */
+// Chaves do projeto — a chave "anon" NÃO é secreta (é feita para ficar
+// visível no navegador de quem usa o painel); quem realmente impede acesso
+// indevido são as regras de RLS criadas em supabase_schema.sql, não o sigilo
+// desta chave. Veja SETUP-SUPABASE.md para o passo a passo completo.
+var SUPABASE_URL = "https://xmeenareblcpmltudppd.supabase.co";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtZWVuYXJlYmxjcG1sdHVkcHBkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjI4MjYsImV4cCI6MjEwNDYzODgyNn0.VIy3AUTbINk4UsnRkneOaZiFLcqeTT20pNgBMp0M1L8";
+var SUPABASE_STORAGE_BUCKET = "documentos-trabalhistas";
+function supabaseIsConfigured(){
+  return !!SUPABASE_URL && SUPABASE_URL.indexOf("COLE_AQUI") !== 0 &&
+         !!SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.indexOf("COLE_AQUI") !== 0;
+}
+
+/* ============================= state ============================= */
+var supabase = null;      // cliente Supabase (window.supabase.createClient(...))
+var session = null;       // sessão de autenticação atual (null = deslogado)
+var currentProfile = null; // {id, email, nome, role} — role é "ADM" ou "Operador"
+var realtimeChannel = null;
+var db = null; // sentinela "conectado" (truthy depois do login) — mantém as checagens "if (!db)" existentes pelo arquivo todo funcionando sem precisar caçar cada uma
+var cases = []; var casesReady = false;
+var currentCaseId = null; // null while editing a new case
+var currentFiles = []; // file summaries for the open case
+var extractedFieldIds = {};
+var downloadsCap = null; // salvar arquivo no disco — só existe dentro do artefato hospedado do Claude, ver initCapabilities(). A extração automática por IA usa /api/extract (servidor), não uma capability do Claude.
+function isAdmin(){ return !!(currentProfile && currentProfile.role === "ADM"); }
+
+/* ============================= mapeamento processo <-> linha do banco ============================= */
+// Traduz entre o formato usado pelo restante da tela (camelCase, com um
+// array "arquivos" embutido) e as colunas de public.cases (snake_case; os
+// arquivos moram numa tabela própria, "case_files", e são mesclados de volta
+// em ".arquivos" depois de buscados separadamente — ver reloadCasesFromDb()).
+function numOrNull(v){ return (v===""||v==null) ? null : Number(v); }
+function caseToDbRow(data){
+  return {
+    funcionario: data.funcionario || "",
+    data_admissao: data.dataAdmissao || null,
+    data_desligamento: data.dataDesligamento || null,
+    tipo_desligamento: data.tipoDesligamento || null,
+    empresa: data.empresa || null,
+    cnpj: data.cnpj || null,
+    numero_processo: data.numeroProcesso || null,
+    advogado: data.advogado || null,
+    data_audiencia: data.dataAudiencia || null,
+    data_abertura: data.dataAbertura || null,
+    valor_processo: numOrNull(data.valorProcesso),
+    status: data.status || "em_andamento",
+    motivo: data.motivo || null,
+    teve_acordo: !!data.teveAcordo,
+    valor_acordo: numOrNull(data.valorAcordo),
+    valor_condenacao: numOrNull(data.valorCondenacao),
+    honorarios_advocaticios: numOrNull(data.honorariosAdvocaticios),
+    observacoes: data.observacoes || null,
+    registrado_por_nome: data.registradoPor || null
+  };
+}
+function dbRowToCase(row){
+  if (!row) return null;
+  return {
+    id: row.id,
+    funcionario: row.funcionario || "",
+    dataAdmissao: row.data_admissao || "",
+    dataDesligamento: row.data_desligamento || "",
+    tipoDesligamento: row.tipo_desligamento || "",
+    empresa: row.empresa || "",
+    cnpj: row.cnpj || "",
+    numeroProcesso: row.numero_processo || "",
+    advogado: row.advogado || "",
+    dataAudiencia: row.data_audiencia || "",
+    dataAbertura: row.data_abertura || "",
+    valorProcesso: row.valor_processo==null ? null : Number(row.valor_processo),
+    status: row.status || "em_andamento",
+    motivo: row.motivo || "",
+    teveAcordo: !!row.teve_acordo,
+    valorAcordo: row.valor_acordo==null ? null : Number(row.valor_acordo),
+    valorCondenacao: row.valor_condenacao==null ? null : Number(row.valor_condenacao),
+    honorariosAdvocaticios: row.honorarios_advocaticios==null ? null : Number(row.honorarios_advocaticios),
+    observacoes: row.observacoes || "",
+    registradoPor: row.registrado_por_nome || "",
+    criadoEm: row.criado_em || "",
+    atualizadoEm: row.atualizado_em || "",
+    arquivos: [] // preenchido por reloadCasesFromDb() a partir de case_files
+  };
+}
+function dbFileRowToFile(row){
+  return {id: row.id, name: row.name, mime: row.mime, size: row.size, uploadedAt: row.uploaded_at, storagePath: row.storage_path, tag: row.tag || ""};
+}
+
+/* ============================= utils ============================= */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function el(tag, attrs, children){
+  var e = document.createElement(tag);
+  if (attrs) for (var k in attrs){
+    if (k==="class") e.className = attrs[k];
+    else if (k==="html") e.innerHTML = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  (children||[]).forEach(function(c){ if (c) e.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+  return e;
+}
+// Rótulo de campo usado nas colunas da tabela de processos — só aparece
+// visualmente na versão em cards empilhados do mobile (.mobile-field-label
+// é display:none no layout de tabela normal; ver media query de 760px).
+function mlabel(text){ return el("span", {class:"mobile-field-label"}, [text]); }
+function escapeHtml(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+// Sanitização defensiva de campos de texto digitados pelo usuário: remove
+// caracteres de controle (preserva quebras de linha) e limita o tamanho.
+// Isto é uma camada extra de defesa em profundidade — a proteção real contra
+// XSS já vem da renderização (todo texto de processo é inserido como nó de
+// texto puro via el(), nunca como innerHTML; veja essa função abaixo), então
+// mesmo sem esta sanitização um `<script>` digitado num campo já apareceria
+// só como texto literal na tela, nunca seria executado.
+function sanitizeText(s, maxLen){
+  s = String(s==null ? "" : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
+  if (maxLen && s.length > maxLen) s = s.slice(0, maxLen);
+  return s;
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmtDateBR(iso){
+  if (!iso) return "—";
+  var d = new Date(iso + "T00:00:00Z");
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("pt-BR", {timeZone:"UTC"});
+}
+function fmtDateTimeBR(iso){
+  if (!iso) return "—";
+  var d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+}
+function fmtMoney(v){
+  if (v==null || v==="" || isNaN(v)) return "—";
+  return Number(v).toLocaleString("pt-BR", {style:"currency", currency:"BRL"});
+}
+function fmtBytes(n){
+  if (n<1024) return n+" B";
+  if (n<1024*1024) return (n/1024).toFixed(0)+" KB";
+  return (n/1024/1024).toFixed(1)+" MB";
+}
+function daysUntil(iso){
+  if (!iso) return null;
+  var target = new Date(iso+"T00:00:00Z").getTime();
+  var now = new Date(); var todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target-todayUTC)/86400000);
+}
+// Tempo total de registro (admissão -> desligamento), em anos e meses por
+// extenso — ex.: "1 ano e 4 meses", "8 meses", "menos de 1 mês". Só calcula
+// quando as duas datas existem; caso contrário não há o que mostrar.
+function tempoRegistroLabel(dataAdmissao, dataDesligamento){
+  if (!dataAdmissao || !dataDesligamento) return null;
+  var d1 = new Date(dataAdmissao+"T00:00:00Z");
+  var d2 = new Date(dataDesligamento+"T00:00:00Z");
+  if (isNaN(d1) || isNaN(d2)) return null;
+  var months = (d2.getUTCFullYear()-d1.getUTCFullYear())*12 + (d2.getUTCMonth()-d1.getUTCMonth());
+  if (d2.getUTCDate() < d1.getUTCDate()) months--;
+  if (months < 0) months = 0;
+  if (months === 0) return "menos de 1 mês";
+  var years = Math.floor(months/12);
+  var remMonths = months % 12;
+  var parts = [];
+  if (years>0) parts.push(years + (years===1 ? " ano" : " anos"));
+  if (remMonths>0) parts.push(remMonths + (remMonths===1 ? " mês" : " meses"));
+  return parts.join(" e ");
+}
+// Quebra o texto livre de "Motivo" (um textarea, não um campo estruturado)
+// em uma frase por tópico, em vez do parágrafo corrido — mais fácil de
+// escanear rapidamente. Divide no ponto/exclamação/interrogação final de
+// cada frase seguido de espaço e de uma letra maiúscula/dígito/aspas (assim
+// abreviações como "Dr." ou "Art." dentro do meio da frase, sem letra
+// maiúscula logo depois, não geram um tópico vazio).
+function splitMotivoBullets(text){
+  var t = (text||"").trim();
+  if (!t) return [];
+  var parts = t.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ú0-9"'])/);
+  return parts.map(function(p){ return p.trim(); }).filter(Boolean);
+}
+function motivoList(text){
+  var bullets = splitMotivoBullets(text);
+  if (!bullets.length) return el("p", {}, ["—"]);
+  var ul = el("ul", {class:"motivo-list"});
+  bullets.forEach(function(b){ ul.appendChild(el("li", {}, [b])); });
+  return ul;
+}
+function onlyDigits(s){ return (s||"").replace(/\D/g,""); }
+function maskCNPJ(v){
+  var d = onlyDigits(v).slice(0,14);
+  var out = d;
+  if (d.length>2) out = d.slice(0,2)+"."+d.slice(2);
+  if (d.length>5) out = out.slice(0,6)+"."+out.slice(6);
+  if (d.length>8) out = out.slice(0,10)+"/"+out.slice(10);
+  if (d.length>12) out = out.slice(0,15)+"-"+out.slice(15);
+  return out;
+}
+
+// Máscara de moeda (R$) aplicada ao vivo, enquanto a pessoa digita. Aceita
+// tanto números puros ("5800" → fica "R$ 5.800" enquanto digita, e vira
+// "R$ 5.800,00" ao sair do campo) quanto entrada já com vírgula decimal
+// ("123456,7" → "R$ 123.456,7…"). A cada tecla, o valor inteiro do campo é
+// relido e recalculado do zero a partir dos dígitos (e da 1ª vírgula, se
+// houver) — não importa muito o que já estava lá.
+//
+// Importante: enquanto a pessoa ainda não digitou a vírgula dos centavos,
+// o campo NÃO é preenchido à força com ",00" a cada tecla — só os separadores
+// de milhar do número inteiro são aplicados. Se ",00" fosse acrescentado a
+// cada tecla, o próximo dígito digitado (que sempre entra no fim do campo)
+// passaria a cair DEPOIS dessa vírgula fictícia e seria lido como parte dos
+// centavos em vez de estender o valor inteiro — foi exatamente esse bug que
+// fazia "5800" digitado tecla a tecla virar "R$ 5,00" em vez de "R$ 5.800".
+// Os centavos só são completados (com "00" se a pessoa não digitou nenhum)
+// quando o campo perde o foco — veja finalizeMoneyInput() logo abaixo.
+// Normaliza uma entrada de moeda ainda "crua" (antes de aplicar a máscara)
+// para o padrão BR (vírgula = decimal, ponto = milhar) antes de descartar
+// tudo que não é dígito ou vírgula. Sem isso, um valor colado ou preenchido
+// programaticamente com ponto decimal (padrão en-US, ex.: "95313.51" — como
+// o que a extração por IA grava no campo antes de qualquer formatação, ou um
+// valor copiado de uma planilha) tinha o ponto simplesmente descartado como
+// se fosse separador de milhar, transformando 95313.51 em 9531351 e exibindo
+// "R$ 9.531.351,00" em vez de "R$ 95.313,51" — foi exatamente o bug que
+// corrompeu um valor real de processo (caso Rodrigo Galvão).
+// Regra de desambiguação: se já existe vírgula, todo ponto é milhar (como
+// sempre). Se não há vírgula mas há pelo menos um ponto, o ÚLTIMO ponto só é
+// tratado como decimal quando tem exatamente 1 ou 2 dígitos depois dele até o
+// fim da string — um agrupamento de milhar válido sempre tem exatamente 3
+// dígitos depois de cada ponto (ex.: "9.531.351" continua sendo lido como
+// milhar; já "95313.51" ou "95.313.51" passam a ser lidos como decimal).
+function normalizeMoneyRaw(strValue){
+  var s = String(strValue||"");
+  if (s.indexOf(",") !== -1) return s;
+  var lastDot = s.lastIndexOf(".");
+  if (lastDot === -1) return s;
+  var suffix = s.slice(lastDot+1);
+  if (/^\d{1,2}$/.test(suffix)){
+    return s.slice(0, lastDot) + "," + suffix;
+  }
+  return s;
+}
+function maskMoneyInput(input){
+  var caretWasAtEnd = input.selectionStart==null || input.selectionStart >= input.value.length;
+  var raw = normalizeMoneyRaw(input.value).replace(/[^\d,]/g, "");
+  var commaIdx = raw.indexOf(",");
+  var intPart, centPart = null;
+  if (commaIdx === -1){
+    intPart = raw;
+  } else {
+    intPart = raw.slice(0, commaIdx);
+    centPart = raw.slice(commaIdx+1).replace(/,/g, "").slice(0,2);
+  }
+  intPart = intPart.replace(/^0+(?=\d)/, "");
+  if (intPart === "") intPart = commaIdx === -1 ? "" : "0";
+  var withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  var out = withThousands === "" ? "" : "R$ " + withThousands + (commaIdx === -1 ? "" : ("," + centPart));
+  input.value = out;
+  if (caretWasAtEnd && input.setSelectionRange){
+    try{ input.setSelectionRange(out.length, out.length); }catch(e){}
+  }
+}
+// Ao sair do campo: garante sempre 2 casas decimais (completa com "0" à
+// direita se faltar, ou zera para "R$ 0,00" se o campo ficou vazio) — assim
+// o valor final sempre aparece formatado como moeda completa, mesmo que a
+// pessoa nunca tenha digitado a vírgula.
+function finalizeMoneyInput(input){
+  var raw = normalizeMoneyRaw(input.value).replace(/[^\d,]/g, "");
+  if (!raw){ input.value = ""; return; }
+  var commaIdx = raw.indexOf(",");
+  var intPart = commaIdx === -1 ? raw : raw.slice(0, commaIdx);
+  var centPart = commaIdx === -1 ? "" : raw.slice(commaIdx+1).replace(/,/g, "").slice(0,2);
+  intPart = intPart.replace(/^0+(?=\d)/, "");
+  if (intPart === "") intPart = "0";
+  centPart = (centPart + "00").slice(0,2);
+  var withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  input.value = "R$ " + withThousands + "," + centPart;
+}
+// Lê um campo de moeda de volta como Number puro (ou null se vazio), pronto
+// para ser salvo — desfaz a formatação "R$ 1.234,56" → 1234.56.
+function parseMoneyInput(id){
+  var e = document.getElementById("f_"+id);
+  if (!e) return null;
+  var raw = normalizeMoneyRaw(e.value||"").replace(/[^\d,]/g, "");
+  if (!raw) return null;
+  raw = raw.replace(",", ".");
+  var num = Number(raw);
+  return isNaN(num) ? null : num;
+}
+function toast(msg, kind){
+  var box = $("#toasts");
+  var t = el("div", {class:"toast"+(kind?" "+kind:"")}, [msg]);
+  box.appendChild(t);
+  setTimeout(function(){ t.style.transition="opacity .3s"; t.style.opacity="0"; setTimeout(function(){ t.remove(); }, 320); }, 5200);
+}
+
+// Segurança máxima pedida pelo usuário: dados jurídicos sensíveis nunca
+// ficam persistidos neste navegador. As versões anteriores deste painel
+// guardavam uma cópia local (cifrada com AES-GCM) dos processos em
+// localStorage como rede de segurança contra reconexões lentas — mas a
+// própria chave de decifragem ficava no mesmo localStorage, então isso não
+// era proteção real contra alguém com acesso a este navegador. Para um app
+// que agora exige login, manter uma cópia dos dados sobrevivendo ao logout
+// (ou a um navegador compartilhado) seria uma brecha, não uma conveniência
+// — por isso essa camada de cache foi removida por completo. Os dados só
+// existem na memória da aba enquanto há uma sessão autenticada válida
+// (ver onLoggedOut(), que limpa "cases" da memória ao sair).
+
+// True para um processo que ainda não foi de fato gravado no banco — ou
+// seja, o formulário está sendo preenchido pela primeira vez. Uma vez
+// autenticado, salvar sempre grava direto no Supabase (sem rascunho local
+// offline: as políticas de RLS exigem uma sessão válida para qualquer
+// escrita, então não haveria como sincronizar depois mesmo).
+function isUnsavedId(id){ return !id; }
+
+// Trava de duplicidade: dois processos com o mesmo Número do Processo (CNJ)
+// são quase sempre o mesmo caso cadastrado duas vezes. Ignora os exemplos
+// fictícios ("demo-") — não contam como um cadastro real — e ignora o próprio
+// processo que está sendo editado, para não acusar duplicidade dele consigo
+// mesmo.
+function normalizeNumeroProcesso(s){ return (s||"").trim().replace(/\s+/g,""); }
+function findDuplicateByNumeroProcesso(numero, excludeId){
+  var n = normalizeNumeroProcesso(numero);
+  if (!n) return null;
+  return cases.find(function(c){
+    if (c.id === excludeId) return false;
+    return normalizeNumeroProcesso(c.numeroProcesso) === n;
+  }) || null;
+}
+
+// ============================= permissões (RBAC real via Supabase Auth) =============================
+// TODA checagem de permissão do painel passa por estas três funções
+// (canCreateCase / canEditCase / canDeleteCase) — mas elas são só uma
+// conveniência de TELA (esconder/desabilitar botões). A segurança de
+// verdade está nas políticas de RLS do banco (supabase_schema.sql): mesmo
+// que alguém adultere o JavaScript da página para burlar estas checagens, a
+// escrita é recusada pelo próprio Postgres. canDelete() aqui espelha
+// exatamente a política "cases: excluir somente ADM" do banco — só um
+// usuário com perfil ADM (tabela public.profiles) pode excluir.
+var PERMISSIONS = {
+  canCreate: function(){ return !!session; },
+  canEdit: function(c){ return !!session; },
+  canDelete: function(c){ return !!session && isAdmin(); }
+};
+function canCreateCase(){ return PERMISSIONS.canCreate(); }
+function canEditCase(c){ return PERMISSIONS.canEdit(c); }
+function canDeleteCase(c){ return PERMISSIONS.canDelete(c); }
+
+// ============================= alerta de recorrência do advogado =============================
+// Quais processos já cadastrados (na lista "cases" em memória, carregada do
+// Supabase) têm o mesmo advogado responsável que o nome
+// sendo digitado agora no formulário. Comparação simples por nome
+// normalizado (sem espaços nas pontas, sem diferenciar maiúsculas/minúsculas)
+// — não é um cadastro único de advogados, então nomes escritos de forma
+// diferente para a mesma pessoa não são detectados. `excludeId` evita que um
+// processo já salvo conte a si mesmo ao ser editado.
+function normalizeAdvogadoName(s){ return (s||"").trim().toLowerCase(); }
+function casesPorAdvogado(nome, excludeId){
+  var n = normalizeAdvogadoName(nome);
+  if (!n) return [];
+  return cases.filter(function(c){
+    if (excludeId && c.id === excludeId) return false;
+    return normalizeAdvogadoName(c.advogado) === n;
+  });
+}
+
+// ============================= log de auditoria =============================
+// O registro de quem cadastrou, alterou ou excluiu cada processo NÃO é mais
+// escrito por este arquivo — pedido explícito do usuário foi "segurança
+// máxima", e um log de auditoria gravado pelo próprio navegador pode ser
+// forjado ou suprimido por quem editar o JavaScript da página. Em vez disso,
+// a tabela public.audit_log é preenchida por um TRIGGER no banco
+// (log_case_audit(), em supabase_schema.sql) toda vez que a tabela "cases"
+// recebe um INSERT/UPDATE/DELETE — o navegador não tem (e não precisa ter)
+// permissão de escrita direta nela. openAuditModal(), mais abaixo, só LÊ
+// esses registros e recalcula o "o que mudou" campo a campo no próprio
+// navegador, a partir dos retratos "antes"/"depois" (dados_antes/
+// dados_depois, em JSON) que o trigger salva — reaproveitando
+// describeCaseChanges() logo abaixo.
+
+// Rótulos e formatação por campo — usados para descrever exatamente o que
+// mudou num "alterado" (ex.: "Status alterado de \"Aguardando audiência\"
+// para \"Ganho\"").
+var AUDIT_FIELD_LABELS = {
+  funcionario:"Funcionário", empresa:"Empresa", cnpj:"CNPJ", numeroProcesso:"Número do processo",
+  advogado:"Advogado", dataAdmissao:"Data de admissão", dataDesligamento:"Data de desligamento",
+  tipoDesligamento:"Tipo de desligamento", dataAbertura:"Data de ajuizamento", dataAudiencia:"Data da audiência",
+  valorProcesso:"Valor da causa", status:"Status", motivo:"Motivo", teveAcordo:"Houve acordo",
+  valorAcordo:"Valor do acordo", valorCondenacao:"Valor da condenação judicial",
+  honorariosAdvocaticios:"Honorários da advocacia", observacoes:"Observações", registradoPor:"Registrado por"
+};
+var AUDIT_DATE_FIELDS = {dataAdmissao:1, dataDesligamento:1, dataAbertura:1, dataAudiencia:1};
+var AUDIT_MONEY_FIELDS = {valorProcesso:1, valorAcordo:1, valorCondenacao:1, honorariosAdvocaticios:1};
+function auditFieldValueLabel(field, value){
+  if (field === "status") return STATUS_LABEL[value] || value || "—";
+  if (field === "tipoDesligamento") return TIPO_DESLIGAMENTO_LABEL[value] || "— não informado —";
+  if (field === "teveAcordo") return value ? "Sim" : "Não";
+  if (AUDIT_DATE_FIELDS[field]) return fmtDateBR(value);
+  if (AUDIT_MONEY_FIELDS[field]) return fmtMoney(value);
+  return (value===null || value===undefined || value==="") ? "—" : String(value);
+}
+function auditNormalizeForCompare(value){ return (value===undefined || value===null) ? "" : value; }
+// Compara o processo antes/depois e monta a frase "Campo alterado de X para
+// Y" para cada campo que realmente mudou — cobre tanto uma troca de status
+// pelo seletor da tabela quanto uma edição completa pelo modal.
+function describeCaseChanges(before, after){
+  if (!before || !after) return "";
+  var partes = [];
+  Object.keys(AUDIT_FIELD_LABELS).forEach(function(f){
+    var oldVal = auditNormalizeForCompare(before[f]);
+    var newVal = auditNormalizeForCompare(after[f]);
+    if (oldVal === newVal) return;
+    partes.push(AUDIT_FIELD_LABELS[f] + " alterado de \"" + auditFieldValueLabel(f, before[f]) + "\" para \"" + auditFieldValueLabel(f, after[f]) + "\"");
+  });
+  return partes.join("; ");
+}
+
+// "Você não pode salvar agora" — usado sempre que uma escrita é tentada sem
+// sessão válida (não deveria acontecer, já que o painel inteiro fica
+// bloqueado sem login, mas serve de rede de segurança caso a sessão expire
+// enquanto o formulário estava aberto).
+function offlineSaveWarning(){
+  return "Sua sessão expirou ou a conexão com o banco caiu. Recarregue a página e entre novamente para salvar.";
+}
+
+// Traduz erros do Supabase/PostgREST (código Postgres em e.code, ou
+// mensagem em e.message) para um aviso compreensível. "42501" é o código
+// padrão do Postgres para violação de política de RLS — ou seja, o próprio
+// banco recusou a operação porque a regra de segurança não permite, mesmo
+// que a tela deixasse parecer que a ação estava disponível.
+function friendlyDbError(e){
+  var code = (e && e.code) || "";
+  var msg = (e && e.message) || "";
+  if (code === "42501" || /row-level security|permission denied/i.test(msg)){
+    return "Você não tem permissão para esta ação (verifique seu perfil de acesso com o administrador).";
+  }
+  if (code === "23505" || /duplicate key/i.test(msg)){
+    return "Já existe um processo cadastrado com esse número.";
+  }
+  if (/JWT|token|session/i.test(msg)){
+    return "Sua sessão expirou. Recarregue a página e entre novamente.";
+  }
+  if (/Failed to fetch|NetworkError|network/i.test(msg)){
+    return "Sem conexão com o banco de dados agora. Verifique sua internet e tente de novo.";
+  }
+  return msg || "Não foi possível completar a operação no banco de dados.";
+}
+function friendlyDownloadError(e){
+  var m = {
+    too_large:"Arquivo grande demais para baixar por aqui (máx. 16 MB).",
+    declined:"Download cancelado.",
+    rejected_extension:"Este tipo de arquivo não pode ser baixado diretamente."
+  };
+  return (e && m[e.code]) || "Não foi possível baixar o arquivo agora.";
+}
+
+/* ============================= capabilities ============================= */
+function useWithTimeout(name, ms){
+  return new Promise(function(resolve){
+    var settled = false;
+    var timer = setTimeout(function(){ if (!settled){ settled = true; resolve(null); } }, ms);
+    Promise.resolve()
+      .then(function(){ return window.claude.use(name); })
+      .then(function(v){ if (!settled){ settled = true; clearTimeout(timer); resolve(v); } })
+      .catch(function(){ if (!settled){ settled = true; clearTimeout(timer); resolve(null); } });
+  });
+}
+
+// downloads (salvar arquivo no disco por uma caixa de diálogo nativa) é um
+// recurso OPCIONAL que só existe quando esta página roda dentro do artefato
+// hospedado do Claude — não existe num arquivo autocontido self-hosted como
+// este. useWithTimeout() já resolve para null com segurança quando
+// window.claude não existe (a chamada window.claude.use(...) lança, é
+// capturada pelo catch, e a Promise resolve null), então isto simplesmente
+// deixa downloadsCap desligado sem quebrar nada — exportCsv() já tem um
+// caminho alternativo (abrir o arquivo numa aba nova) para quando não há
+// essa capacidade. A extração automática por IA NÃO passa mais por aqui:
+// ela agora é feita pela função de servidor /api/extract (ver
+// extractFieldsFromFile()), que funciona igual dentro ou fora do Claude.
+async function initCapabilities(){
+  useWithTimeout("downloads", 4000).then(function(v){ downloadsCap = v; });
+}
+
+// Busca os metadados de TODOS os anexos de uma vez (em vez de um SELECT por
+// processo) e agrupa por case_id — muito mais rápido que N consultas
+// separadas para uma lista com vários processos. O arquivo em si continua
+// só no Storage; aqui só vêm nome/tamanho/categoria/caminho.
+async function fetchAllCaseFiles(){
+  var res = await supabase.from("case_files").select("*").order("uploaded_at");
+  if (res.error) throw res.error;
+  var byCase = {};
+  (res.data||[]).forEach(function(row){
+    if (!byCase[row.case_id]) byCase[row.case_id] = [];
+    byCase[row.case_id].push(dbFileRowToFile(row));
+  });
+  return byCase;
+}
+
+// Recarrega processos + anexos do zero e substitui "cases" por inteiro. É a
+// única função que efetivamente popula a tela com dados reais — chamada
+// uma vez ao entrar (subscribeCases()) e de novo a cada evento em tempo
+// real (outra pessoa cadastrou/editou/excluiu um processo, ou anexou/
+// removeu um arquivo, em qualquer computador). Refazer a busca inteira em
+// vez de tentar aplicar um "patch" incremental é deliberado: mantém este
+// código simples e sempre consistente, e o volume de processos de um
+// painel jurídico interno não é grande o bastante para isso pesar.
+async function reloadCasesFromDb(){
+  if (!supabase || !session) return;
+  try{
+    var casesRes = await supabase.from("cases").select("*").order("criado_em", {ascending:false});
+    if (casesRes.error) throw casesRes.error;
+    var filesByCase = await fetchAllCaseFiles();
+    cases = (casesRes.data||[]).map(function(row){
+      var c = dbRowToCase(row);
+      c.arquivos = filesByCase[row.id] || [];
+      return c;
+    });
+    casesReady = true;
+    renderStats();
+    renderTable();
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+  }
+}
+
+// Liga a atualização em tempo real: qualquer INSERT/UPDATE/DELETE em
+// "cases" ou "case_files" — feito por você mesmo em outra aba, ou por
+// qualquer outro usuário autenticado, em qualquer computador — dispara uma
+// releitura, então a tela nunca fica desatualizada.
+function subscribeCases(){
+  reloadCasesFromDb();
+  if (realtimeChannel){
+    try{ supabase.removeChannel(realtimeChannel); }catch(e){}
+    realtimeChannel = null;
+  }
+  realtimeChannel = supabase
+    .channel("painel-processos-changes")
+    .on("postgres_changes", {event:"*", schema:"public", table:"cases"}, function(){ reloadCasesFromDb(); })
+    .on("postgres_changes", {event:"*", schema:"public", table:"case_files"}, function(){ reloadCasesFromDb(); })
+    .subscribe();
+}
+
+/* ============================= status filter select ============================= */
+(function fillStatusFilter(){
+  var sel = $("#statusFilter");
+  STATUS.forEach(function(s){
+    sel.appendChild(el("option", {value:s.id}, [s.label]));
+  });
+})();
+
+/* ============================= filtro avançado de status (com "Passou do prazo") ============================= */
+(function fillStatusAvancadoFilter(){
+  var sel = $("#filterStatusAvancado");
+  STATUS.forEach(function(s){
+    sel.appendChild(el("option", {value:s.id}, [s.label]));
+  });
+  sel.appendChild(el("option", {value:"passou_prazo"}, ["Passou do prazo"]));
+})();
+
+/* ============================= filtro de motivo de desligamento ============================= */
+(function fillTipoDesligamentoFilter(){
+  var sel = $("#filterTipoDesligamento");
+  TIPO_DESLIGAMENTO.forEach(function(s){
+    if (!s.id) return; // "— não informado —" fica fora do filtro; use "Todos" para isso
+    sel.appendChild(el("option", {value:s.id}, [s.label]));
+  });
+})();
+
+/* ============================= tema (claro/escuro) ============================= */
+var THEME_KEY = "ptw_theme";
+function systemPrefersDark(){
+  return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+function currentTheme(){
+  var attr = document.documentElement.getAttribute("data-theme");
+  if (attr === "light" || attr === "dark") return attr;
+  return systemPrefersDark() ? "dark" : "light";
+}
+function refreshThemeIcon(){
+  var isDark = currentTheme() === "dark";
+  var moon = $("#themeIconMoon"), sun = $("#themeIconSun");
+  // Ícone mostra a ação do clique: lua (ir para escuro) quando está claro,
+  // sol (ir para claro) quando está escuro.
+  if (moon) moon.style.display = isDark ? "none" : "";
+  if (sun) sun.style.display = isDark ? "" : "none";
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
+  refreshThemeIcon();
+}
+$("#btnThemeToggle").addEventListener("click", function(){
+  applyTheme(currentTheme() === "dark" ? "light" : "dark");
+});
+refreshThemeIcon();
+
+/* ============================= autenticação (Supabase Auth) ============================= */
+// Todo o painel e todos os dados ficam bloqueados enquanto não há uma
+// sessão válida — a tela de login (#loginScreen) é a única coisa visível
+// até initSupabaseAuth() confirmar um login (seja um já existente, restau-
+// rado automaticamente pelo supabase-js a partir do navegador, seja um
+// recém-digitado no formulário abaixo).
+function showLoginScreen(){
+  $("#appRoot").style.display = "none";
+  $("#loginScreen").style.display = "flex";
+}
+function showAppRoot(){
+  $("#loginScreen").style.display = "none";
+  $("#appRoot").style.display = "";
+}
+
+// Carrega o papel (ADM/Operador) e o nome de quem entrou, a partir da
+// tabela public.profiles (criada automaticamente por um trigger no banco
+// no primeiro login de cada e-mail cadastrado — veja supabase_schema.sql).
+async function loadProfile(userId){
+  try{
+    var res = await supabase.from("profiles").select("*").eq("id", userId).single();
+    if (res.error) throw res.error;
+    currentProfile = {id: res.data.id, email: res.data.email, nome: res.data.nome || res.data.email, role: res.data.role || "Operador"};
+  }catch(e){
+    console.error("Falha ao carregar perfil do usuário:", e);
+    var fallbackEmail = (session && session.user && session.user.email) || "";
+    currentProfile = {id: userId, email: fallbackEmail, nome: fallbackEmail, role: "Operador"};
+  }
+}
+
+function refreshUserMenu(){
+  var email = (session && session.user && session.user.email) || "";
+  var nome = (currentProfile && currentProfile.nome) || email;
+  var roleLabel = isAdmin() ? "Administrador (ADM)" : "Operador";
+  var idLabel = $("#userIdLabel"); if (idLabel) idLabel.textContent = nome || "Conta";
+  var emailEl = $("#userDropdownEmail"); if (emailEl) emailEl.textContent = email || "—";
+  var roleEl = $("#userDropdownRole");
+  if (roleEl){
+    roleEl.innerHTML = "";
+    roleEl.appendChild(el("span", {class:"role-badge"+(isAdmin()?" adm":"")}, [roleLabel]));
+  }
+}
+
+async function onLoggedIn(newSession){
+  session = newSession;
+  db = supabase; // sentinela "conectado" — mantém funcionando as checagens "if (!db)"/"if (db)" espalhadas pelo restante do arquivo
+  $("#loginError").style.display = "none";
+  await loadProfile(session.user.id);
+  refreshUserMenu();
+  showAppRoot();
+  subscribeCases();
+  initCapabilities();
+}
+
+function onLoggedOut(){
+  session = null;
+  currentProfile = null;
+  db = null;
+  cases = []; casesReady = false;
+  currentCaseId = null; currentFiles = [];
+  if (realtimeChannel){ try{ supabase.removeChannel(realtimeChannel); }catch(e){} realtimeChannel = null; }
+  closePanel();
+  var form = $("#loginForm"); if (form) form.reset();
+  var btn = $("#btnLogin"); if (btn) btn.disabled = false;
+  showLoginScreen();
+}
+
+function friendlyAuthError(e){
+  var msg = (e && e.message) || "";
+  if (/invalid login credentials/i.test(msg)) return "E-mail ou senha incorretos.";
+  if (/email not confirmed/i.test(msg)) return "E-mail ainda não confirmado — verifique sua caixa de entrada.";
+  if (/Failed to fetch|NetworkError/i.test(msg)) return "Sem conexão com o servidor de autenticação. Verifique sua internet.";
+  return msg || "Não foi possível entrar. Tente novamente.";
+}
+
+async function initSupabaseAuth(){
+  if (!supabaseIsConfigured()){
+    $("#loginConfigWarn").style.display = "block";
+    $("#btnLogin").disabled = true;
+    return;
+  }
+  if (!window.supabase || typeof window.supabase.createClient !== "function"){
+    $("#loginError").textContent = "Não foi possível carregar a biblioteca do Supabase — verifique sua conexão com a internet e recarregue a página.";
+    $("#loginError").style.display = "block";
+    $("#btnLogin").disabled = true;
+    return;
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  supabase.auth.onAuthStateChange(function(_event, newSession){
+    if (newSession && newSession.user) onLoggedIn(newSession);
+    else onLoggedOut();
+  });
+
+  try{
+    var res = await supabase.auth.getSession();
+    if (res.data && res.data.session) await onLoggedIn(res.data.session);
+    else showLoginScreen();
+  }catch(e){
+    showLoginScreen();
+  }
+}
+
+$("#loginForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  var email = $("#loginEmail").value.trim();
+  var senha = $("#loginPassword").value;
+  if (!email || !senha) return;
+  var errEl = $("#loginError");
+  errEl.style.display = "none";
+  var btn = $("#btnLogin");
+  btn.disabled = true;
+  try{
+    var res = await supabase.auth.signInWithPassword({email: email, password: senha});
+    if (res.error) throw res.error;
+    // onAuthStateChange (acima) cuida do resto: carregar perfil e mostrar o painel.
+  }catch(err){
+    errEl.textContent = friendlyAuthError(err);
+    errEl.style.display = "block";
+    btn.disabled = false;
+  }
+});
+
+$("#btnUserId").addEventListener("click", function(e){
+  e.stopPropagation();
+  $("#userDropdown").classList.toggle("open");
+});
+document.addEventListener("click", function(){
+  var dd = $("#userDropdown"); if (dd) dd.classList.remove("open");
+});
+$("#btnLogout").addEventListener("click", async function(){
+  var dd = $("#userDropdown"); if (dd) dd.classList.remove("open");
+  try{ await supabase.auth.signOut(); }catch(e){}
+  // onAuthStateChange já chama onLoggedOut(), mas chamamos direto também —
+  // garante a tela de login mesmo se o evento demorar ou o signOut falhar
+  // por falta de rede (nesse caso a sessão local ainda é limpa).
+  onLoggedOut();
+});
+
+/* ============================= stats ============================= */
+// Valor efetivamente gasto num processo: (valor do acordo OU valor da
+// condenação judicial) + honorários da advocacia. Quando "Houve acordo" está
+// marcado, usa o valor do acordo; quando não está, usa o valor da condenação
+// judicial (preenchido só quando a Justiça de fato condenou a empresa) — os
+// dois nunca coexistem no mesmo processo. Honorários são sempre somados,
+// independente de ter havido acordo ou condenação.
+function valorGastoDoProcesso(c){
+  var honor = Number(c.honorariosAdvocaticios)||0;
+  var base = c.teveAcordo ? (Number(c.valorAcordo)||0) : (Number(c.valorCondenacao)||0);
+  return base + honor;
+}
+
+function renderStats(){
+  var emAndamento = cases.filter(function(c){ return !CONCLUDED_STATUSES[c.status]; });
+  var concluidos = cases.filter(function(c){ return CONCLUDED_STATUSES[c.status]; });
+  var totalGeral = cases.slice();
+  var totalGasto = concluidos.reduce(function(a,c){ return a + valorGastoDoProcesso(c); }, 0);
+
+  var in7List = cases.filter(function(c){
+    if (!c.dataAudiencia) return false;
+    var d = daysUntil(c.dataAudiencia);
+    return d!==null && d>=0 && d<=7;
+  }).sort(function(a,b){ return a.dataAudiencia < b.dataAudiencia ? -1 : 1; });
+  var in3 = in7List.filter(function(c){ return daysUntil(c.dataAudiencia) <= 3; }).length;
+  var hearingCls = in3>0 ? "danger" : (in7List.length>0 ? "accent" : "");
+
+  var row = $("#statsRow");
+  row.innerHTML = "";
+  row.appendChild(statCard("Processos em aberto", String(emAndamento.length), "separando defesa ou aguardando audiência", "", function(){
+    openStatModal("Processos em aberto", emAndamento, statModalColumnsBasic);
+  }));
+  row.appendChild(statCard("Processos concluídos", String(concluidos.length), "encerrado (com acordo), ganho ou perdido", "", function(){
+    openStatModal("Processos concluídos", concluidos, statModalColumnsBasic);
+  }));
+  row.appendChild(statCard("Total geral de processos", String(totalGeral.length), "todos os processos cadastrados", "", function(){
+    openStatModal("Todos os processos", totalGeral, statModalColumnsBasic);
+  }));
+  row.appendChild(statCard("Gasto total real (concluídos)", fmtMoney(totalGasto), concluidos.length + " processo(s) concluído(s) · acordo/condenação + honorários", "warn", function(){
+    openStatModal("Gasto total real (concluídos)", concluidos, statModalColumnsGasto);
+  }));
+  row.appendChild(statCard("Audiências em 7 dias", String(in7List.length), in7List.length>0 ? (in3>0 ? "⚠ " + in3 + " em até 3 dias!" : "fique de olho na tabela abaixo") : "nenhuma no momento", hearingCls, function(){
+    openStatModal("Audiências em 7 dias", in7List, statModalColumnsAudiencia);
+  }));
+
+  renderCnpjSummary();
+  renderDocumentosTab();
+}
+function statCard(label, value, hint, cls, onClick){
+  var card = el("div", {class:"stat clickable"+(cls?" "+cls:""), tabindex:"0", role:"button", "aria-label":"Ver detalhes: "+label}, [
+    el("div", {class:"label"}, [label]),
+    el("div", {class:"value"}, [value]),
+    el("div", {class:"hint"}, [hint])
+  ]);
+  if (onClick){
+    card.addEventListener("click", onClick);
+    card.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); onClick(); } });
+  }
+  return card;
+}
+
+/* ============================= modal de detalhamento dos cards ============================= */
+// O que mostrar na coluna de valor "final" de um processo: uma vez concluído
+// (acordo, ganho, perdido ou encerrado), o Gasto Total Real — (acordo OU
+// condenação judicial) + honorários — que é o que de fato saiu do caixa;
+// enquanto ainda está em andamento/aguardando audiência/recurso, mostra o
+// valor da causa, que é a única referência disponível até ali.
+function valorFinalDisplay(c){
+  if (CONCLUDED_STATUSES[c.status]) return fmtMoney(valorGastoDoProcesso(c));
+  return fmtMoney(c.valorProcesso);
+}
+function valorFinalLabel(c){
+  if (CONCLUDED_STATUSES[c.status]) return "gasto total real";
+  return "valor da causa";
+}
+
+function statModalColumnsBasic(c){
+  return {
+    nm: c.funcionario || "—",
+    sub: (c.empresa||"—") + " · " + (c.cnpj||"—"),
+    vals: [
+      {b: valorFinalDisplay(c), span: valorFinalLabel(c)},
+      {b: STATUS_LABEL[c.status]||c.status||"—", span: "status"}
+    ]
+  };
+}
+function statModalColumnsGasto(c){
+  var baseLabel = c.teveAcordo ? "acordo" : "condenação judicial";
+  var baseValue = c.teveAcordo ? c.valorAcordo : c.valorCondenacao;
+  return {
+    nm: c.funcionario || "—",
+    sub: (c.empresa||"—") + " · " + (c.cnpj||"—"),
+    vals: [
+      {b: fmtMoney(baseValue), span: baseLabel},
+      {b: fmtMoney(c.honorariosAdvocaticios), span: "honorários"},
+      {b: fmtMoney(valorGastoDoProcesso(c)), span: "gasto total real"}
+    ]
+  };
+}
+// Selo colorido de urgência (o mesmo padrão de cores usado na tabela principal:
+// vermelho = atrasada/muito perto, laranja = dentro de 7 dias) com texto por
+// extenso ("Faltam N dias"), para o modal — que tem espaço de sobra e se
+// beneficia de um texto mais claro do que a abreviação "Nd" da tabela.
+function hearingAlertBadge(iso){
+  var d = daysUntil(iso);
+  var cls = "audiencia-badge", text;
+  var bell = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if (d==null){ cls += " neutral"; text = "Sem data"; }
+  else if (d<0){ cls += " urgent"; text = "Atrasada"; }
+  else if (d===0){ cls += " urgent"; text = "Hoje"; }
+  else if (d<=3){ cls += " urgent"; text = "Faltam " + d + (d===1?" dia":" dias"); }
+  else if (d<=7){ cls += " soon"; text = "Faltam " + d + " dias"; }
+  else { cls += " neutral"; text = "Faltam " + d + " dias"; }
+  return el("span", {class: cls, html: bell + "<span>" + escapeHtml(text) + "</span>"});
+}
+function statModalColumnsAudiencia(c){
+  return {
+    nm: c.funcionario || "—",
+    sub: (c.empresa||"—") + " · " + (c.cnpj||"—"),
+    vals: [
+      {b: fmtDateBR(c.dataAudiencia), span: "audiência"},
+      {node: hearingAlertBadge(c.dataAudiencia)}
+    ]
+  };
+}
+
+function openStatModal(title, list, columnsFn){
+  $("#statModalTitle").textContent = title;
+  var body = $("#statModalBody");
+  body.innerHTML = "";
+  if (!list.length){
+    body.appendChild(el("div", {class:"modal-empty"}, ["Nenhum processo nesta categoria."]));
+  } else {
+    list.forEach(function(c){
+      var info = columnsFn(c);
+      var row = el("div", {class:"modal-row", tabindex:"0"});
+      var who = el("div", {class:"who"});
+      who.appendChild(el("div", {class:"nm"}, [info.nm]));
+      who.appendChild(el("div", {class:"sub"}, [info.sub]));
+      row.appendChild(who);
+      var vals = el("div", {class:"vals"});
+      (info.vals||[]).forEach(function(v){
+        if (v.node){
+          vals.appendChild(v.node);
+        } else {
+          vals.appendChild(el("div", {}, [ el("b",{},[v.b]), el("span",{},[v.span]) ]));
+        }
+      });
+      row.appendChild(vals);
+      row.addEventListener("click", function(){ closeStatModal(); openCase(c.id); });
+      row.addEventListener("keydown", function(e){ if (e.key==="Enter"){ closeStatModal(); openCase(c.id); } });
+      body.appendChild(row);
+    });
+  }
+  $("#statModalOverlay").classList.add("open");
+}
+function closeStatModal(){ $("#statModalOverlay").classList.remove("open"); }
+
+/* ============================= modal do log de auditoria ============================= */
+function auditActionLabel(a){
+  return a==="criado" ? "Cadastrado" : a==="alterado" ? "Alterado" : a==="excluido" ? "Excluído" : (a||"—");
+}
+// O campo "detalhe" continua gravado no banco (e exportado no CSV) como uma
+// única string no formato antigo — "Campo alterado de "X" para "Y"; Campo2
+// alterado de "A" para "B"" — por compatibilidade com registros já
+// existentes. Aqui, só para exibição no modal, isso é quebrado em um tópico
+// por campo alterado, no formato pedido: • Campo: "X" → "Y".
+function parseAuditDetalheClauses(detalhe){
+  if (!detalhe) return [];
+  return String(detalhe).split("; ").map(function(clause){
+    var m = clause.match(/^(.+?) alterado de "([\s\S]*)" para "([\s\S]*)"$/);
+    if (!m) return {label:null, text:clause};
+    return {label:m[1], oldVal:m[2], newVal:m[3]};
+  });
+}
+function auditDetalheList(detalhe){
+  var clauses = parseAuditDetalheClauses(detalhe);
+  if (!clauses.length) return null;
+  var ul = el("ul", {class:"audit-detalhe-list"});
+  clauses.forEach(function(c){
+    var text = c.label ? (c.label + ": \"" + c.oldVal + "\" → \"" + c.newVal + "\"") : c.text;
+    ul.appendChild(el("li", {}, ["• " + text]));
+  });
+  return ul;
+}
+function auditRow(entry){
+  var row = el("div", {class:"modal-row"});
+  row.appendChild(el("span", {class:"pill audit-"+(entry.action||"")}, [auditActionLabel(entry.action)]));
+  var who = el("div", {class:"who"});
+  who.appendChild(el("div", {class:"nm"}, [entry.numeroProcesso || "(sem nº de processo)"]));
+  who.appendChild(el("div", {class:"sub"}, [(entry.funcionario||"—") + " · por " + (entry.usuario||"—")]));
+  // Detalhe do que mudou (só existe para "alterado", quando havia algo para
+  // comparar) — em tópicos, um por campo alterado.
+  var detalheList = auditDetalheList(entry.detalhe);
+  if (detalheList){
+    detalheList.classList.add("sub");
+    detalheList.style.marginTop = "3px";
+    detalheList.style.color = "var(--ink-soft)";
+    who.appendChild(detalheList);
+  }
+  row.appendChild(who);
+  var vals = el("div", {class:"vals"});
+  vals.appendChild(el("div", {}, [ el("b",{},[fmtDateTimeBR(entry.ts)]), el("span",{},["quando"]) ]));
+  row.appendChild(vals);
+  return row;
+}
+// Guarda os registros carregados na última abertura do modal, pra o botão
+// "Exportar log (CSV)" não precisar buscar tudo de novo no banco.
+var lastAuditEntries = [];
+// Converte uma linha crua de public.audit_log (colunas em snake_case,
+// "antes"/"depois" como JSON dos campos do banco) no mesmo formato que
+// auditRow()/buildAuditCsvRows() já sabem desenhar — recalculando o
+// "detalhe" campo a campo no navegador a partir dos dois retratos
+// (dados_antes/dados_depois) que o trigger do banco salvou. O log em si
+// nunca passa pelo JavaScript da página no momento em que o evento
+// acontece — só quando é lido aqui, para exibição.
+function auditRowFromDbLog(row){
+  var antes = row.dados_antes ? dbRowToCase(row.dados_antes) : null;
+  var depois = row.dados_depois ? dbRowToCase(row.dados_depois) : null;
+  var detalhe = (row.action === "alterado" && antes && depois) ? describeCaseChanges(antes, depois) : "";
+  return {
+    action: row.action,
+    numeroProcesso: row.numero_processo || "",
+    funcionario: row.funcionario || "",
+    usuario: row.usuario_nome || row.usuario_email || "Sistema",
+    detalhe: detalhe,
+    ts: row.ts
+  };
+}
+
+async function openAuditModal(){
+  var body = $("#auditModalBody");
+  var exportBtn = $("#btnExportAuditLog");
+  body.innerHTML = "";
+  lastAuditEntries = [];
+  if (exportBtn) exportBtn.disabled = true;
+  $("#auditModalOverlay").classList.add("open");
+  if (!supabase || !session){
+    body.appendChild(el("div", {class:"modal-empty"}, ["O log de auditoria é lido do banco de dados — entre no painel para consultá-lo."]));
+    return;
+  }
+  body.appendChild(el("div", {class:"modal-empty"}, ["Carregando…"]));
+  try{
+    var res = await supabase.from("audit_log").select("*").order("ts", {ascending:false}).limit(200);
+    if (res.error) throw res.error;
+    var entries = (res.data||[]).map(auditRowFromDbLog);
+    body.innerHTML = "";
+    if (!entries.length){
+      body.appendChild(el("div", {class:"modal-empty"}, ["Nenhum registro de auditoria ainda — ele passa a ser preenchido a partir de agora, a cada processo cadastrado, alterado ou excluído."]));
+      return;
+    }
+    entries.forEach(function(entry){ body.appendChild(auditRow(entry)); });
+    lastAuditEntries = entries;
+    if (exportBtn) exportBtn.disabled = false;
+  }catch(e){
+    body.innerHTML = "";
+    body.appendChild(el("div", {class:"modal-empty"}, ["Não foi possível carregar o log de auditoria. " + friendlyDbError(e)]));
+  }
+}
+function closeAuditModal(){ $("#auditModalOverlay").classList.remove("open"); }
+function buildAuditCsvRows(entries){
+  var header = ["Data/hora","Ação","Nº do processo","Funcionário","Usuário","Detalhe"];
+  var rows = [header];
+  entries.forEach(function(e){
+    rows.push([fmtDateTimeBR(e.ts), auditActionLabel(e.action), e.numeroProcesso||"", e.funcionario||"", e.usuario||"", e.detalhe||""]);
+  });
+  return rows;
+}
+$("#btnExportAuditLog").addEventListener("click", function(){
+  if (!lastAuditEntries.length){ toast("Não há registros de auditoria para exportar.", "err"); return; }
+  exportCsv("log-auditoria.csv", buildAuditCsvRows(lastAuditEntries));
+});
+
+/* ============================= resumo por empresa ============================= */
+// Agrupa os processos atuais por CNPJ, mantendo a lista de processos de cada
+// empresa (não só as contagens) — usada tanto pelos cards/accordion e pelos
+// gráficos do Resumo por Empresa quanto pela árvore de pastas da aba
+// Documentos e pela exportação em CSV. "gasto" soma exclusivamente os
+// processos ENCERRADOS (gasto real efetivo já pago/reconhecido); "riscoAtivo"
+// soma o valor da causa dos processos ainda ATIVOS (risco em aberto, não
+// necessariamente o que vai ser efetivamente gasto) — as duas somas nunca se
+// misturam, de propósito.
+function computeEmpresaGroups(){
+  var byCnpj = {};
+  cases.forEach(function(c){
+    var key = onlyDigits(c.cnpj) || ("__sem_cnpj__" + (c.empresa||"—"));
+    if (!byCnpj[key]) byCnpj[key] = {key:key, cnpj: c.cnpj||"—", empresa: c.empresa||"(empresa não informada)", cases: []};
+    byCnpj[key].cases.push(c);
+  });
+  return Object.keys(byCnpj).map(function(k){
+    var g = byCnpj[k];
+    var ativos = g.cases.filter(function(c){ return !CONCLUDED_STATUSES[c.status]; });
+    var encerrados = g.cases.filter(function(c){ return !!CONCLUDED_STATUSES[c.status]; });
+    g.ativos = ativos.length;
+    g.encerrados = encerrados.length;
+    g.gasto = encerrados.reduce(function(a,c){ return a + valorGastoDoProcesso(c); }, 0);
+    g.riscoAtivo = ativos.reduce(function(a,c){ return a + (Number(c.valorProcesso)||0); }, 0);
+    return g;
+  });
+}
+// Mantido como alias por compatibilidade de nome com o CSV de exportação.
+function computeCnpjGroups(){ return computeEmpresaGroups(); }
+
+// Qual card de empresa está expandido no Resumo (accordion in-page — clicar
+// num card não navega mais para a aba Processos, ver buildEmpresaCard()) e
+// qual sub-aba (Ativos/Encerrados) está ativa dentro dele. Precisam viver
+// fora de renderCnpjSummary() porque a função reconstrói os cards do zero a
+// cada chamada (toda vez que os processos mudam) e precisa lembrar o que
+// estava aberto.
+var expandedEmpresaKey = null;
+var expandedEmpresaScope = "ativos";
+
+function renderCnpjSummary(){
+  var box = $("#empresaSummary");
+  var cardsWrap = $("#empresaCards");
+  if (!box || !cardsWrap) return;
+  if (!cases.length){
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  var groups = computeEmpresaGroups();
+  renderExposureCharts(groups);
+
+  // Maior gasto real entre as empresas — referência para a barra de progresso
+  // de cada card (a empresa mais cara fica com a barra cheia; as demais são
+  // proporcionais a ela).
+  var maxGasto = groups.reduce(function(m,g){ return Math.max(m, g.gasto); }, 0);
+
+  // Maiores gastos primeiro, para destacar de cara as empresas mais caras.
+  var sorted = groups.slice().sort(function(a,b){ return b.gasto - a.gasto; });
+
+  cardsWrap.innerHTML = "";
+  if (!sorted.length){
+    cardsWrap.appendChild(el("div", {class:"empresa-empty"}, ["Nenhuma empresa cadastrada ainda."]));
+    return;
+  }
+  // Se a empresa expandida não existe mais nesta lista (ex.: o último
+  // processo dela foi excluído), fecha o accordion em vez de deixá-lo "preso"
+  // aberto para uma empresa que sumiu.
+  if (expandedEmpresaKey && !sorted.some(function(g){ return g.key === expandedEmpresaKey; })){
+    expandedEmpresaKey = null;
+  }
+  sorted.forEach(function(g){
+    cardsWrap.appendChild(buildEmpresaCard(g, maxGasto));
+    if (g.key === expandedEmpresaKey) cardsWrap.appendChild(buildEmpresaDetailPanel(g));
+  });
+}
+
+// Card clicável de uma empresa: razão social + CNPJ + barra de progresso do
+// gasto real à esquerda; contagem de ativos/encerrados + gasto real total à
+// direita (rótulo pequeno em cima, valor em destaque embaixo — mesmo padrão
+// dos cards de estatística do topo da aba Processos). Clicar expande/recolhe
+// o painel com os processos da empresa logo abaixo, na própria aba (accordion
+// in-page — ver toggleEmpresaCard() e buildEmpresaDetailPanel()).
+function buildEmpresaCard(g, maxGasto){
+  var isOpen = g.key === expandedEmpresaKey;
+  var card = el("div", {
+    class:"empresa-card" + (isOpen ? " open" : ""), tabindex:"0", role:"button",
+    "aria-expanded": isOpen ? "true" : "false",
+    "aria-label": (isOpen?"Recolher":"Ver") + " processos de "+(g.empresa||"empresa não informada")
+  });
+  card.addEventListener("click", function(){ toggleEmpresaCard(g.key); });
+  card.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); toggleEmpresaCard(g.key); } });
+
+  var left = el("div", {class:"empresa-card-left"});
+  left.appendChild(el("div", {class:"empresa-card-name"}, [g.empresa || "(empresa não informada)"]));
+  left.appendChild(el("div", {class:"empresa-card-cnpj"}, [g.cnpj || "—"]));
+  var track = el("div", {class:"empresa-card-progress-track"});
+  var pct = maxGasto>0 ? Math.max(g.gasto>0 ? 3 : 0, Math.round((g.gasto/maxGasto)*100)) : 0;
+  track.appendChild(el("div", {class:"empresa-card-progress-fill", style:"width:"+pct+"%;"}));
+  left.appendChild(track);
+  card.appendChild(left);
+
+  var right = el("div", {class:"empresa-card-right"});
+  right.appendChild(empresaMetric(String(g.ativos), "ativos"));
+  right.appendChild(empresaMetric(String(g.encerrados), "encerrados"));
+  right.appendChild(empresaMetric(fmtMoney(g.gasto), "gasto total real", "gasto-total"));
+  card.appendChild(right);
+
+  card.appendChild(el("span", {class:"empresa-card-chevron", html: CHEVRON_SVG}));
+
+  return card;
+}
+// Rótulo pequeno no topo, valor/badge em destaque logo abaixo — mesmo padrão
+// usado em .stat (topo da aba Processos): .label em cima, .value embaixo.
+function empresaMetric(value, label, extraCls){
+  return el("div", {class:"empresa-metric"}, [
+    el("span", {class:"empresa-metric-label"}, [label]),
+    el("b", {class:extraCls||""}, [value])
+  ]);
+}
+
+function toggleEmpresaCard(key){
+  expandedEmpresaKey = (expandedEmpresaKey === key) ? null : key;
+  expandedEmpresaScope = "ativos"; // reabrir um card sempre começa pela sub-aba Ativos
+  renderCnpjSummary();
+}
+
+// Painel expansível (accordion) com os processos de uma empresa, logo abaixo
+// do card — nunca navega para a aba Processos. Duas sub-abas: "Ativos" mostra
+// o Valor da Causa (risco em aberto, ainda não realizado) e "Encerrados"
+// mostra o Gasto Real Efetivo (acordo/condenação + honorários) de cada
+// processo — os dois nunca aparecem misturados na mesma lista.
+function buildEmpresaDetailPanel(g){
+  var panel = el("div", {class:"empresa-detail"});
+  panel.addEventListener("click", function(e){ e.stopPropagation(); }); // não deixa o clique "vazar" e fechar o card
+
+  var tabs = el("div", {class:"empresa-detail-tabs", role:"tablist"});
+  var ativosBtn = el("button", {type:"button", class:"empresa-detail-tab"+(expandedEmpresaScope==="ativos"?" active":""), role:"tab", "aria-selected": expandedEmpresaScope==="ativos"?"true":"false"}, ["Ativos ("+g.ativos+")"]);
+  var encerradosBtn = el("button", {type:"button", class:"empresa-detail-tab"+(expandedEmpresaScope==="encerrados"?" active":""), role:"tab", "aria-selected": expandedEmpresaScope==="encerrados"?"true":"false"}, ["Encerrados ("+g.encerrados+")"]);
+  ativosBtn.addEventListener("click", function(){ expandedEmpresaScope = "ativos"; renderCnpjSummary(); });
+  encerradosBtn.addEventListener("click", function(){ expandedEmpresaScope = "encerrados"; renderCnpjSummary(); });
+  tabs.appendChild(ativosBtn); tabs.appendChild(encerradosBtn);
+  panel.appendChild(tabs);
+
+  var showEncerrados = expandedEmpresaScope === "encerrados";
+  var list = el("div", {class:"empresa-detail-list"});
+  var relevant = g.cases.filter(function(c){ return !!CONCLUDED_STATUSES[c.status] === showEncerrados; })
+    .sort(function(a,b){ return (a.funcionario||"").localeCompare(b.funcionario||"", "pt-BR"); });
+
+  if (!relevant.length){
+    list.appendChild(el("div", {class:"empresa-empty"}, [
+      showEncerrados ? "Nenhum processo encerrado desta empresa." : "Nenhum processo ativo desta empresa."
+    ]));
+  } else {
+    relevant.forEach(function(c){
+      var row = el("div", {class:"empresa-detail-row", tabindex:"0", role:"button", "aria-label":"Abrir processo de "+(c.funcionario||"—")});
+      // Abre o modal por cima da tela atual, sem trocar a aba de fundo — o
+      // painel é um overlay fixo, então funciona em cima de qualquer aba.
+      // expandedEmpresaKey/expandedEmpresaScope não são tocados aqui, então
+      // o card continua no mesmo estado (aberto/fechado) depois de salvar ou
+      // fechar o modal, já que renderCnpjSummary() os relê a cada render.
+      function openIt(){ openCase(c.id); }
+      row.addEventListener("click", function(e){ e.stopPropagation(); openIt(); });
+      row.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); e.stopPropagation(); openIt(); } });
+
+      var who = el("div", {class:"empresa-detail-who"});
+      who.appendChild(el("div", {class:"empresa-detail-name"}, [c.funcionario||"—"]));
+      who.appendChild(el("span", {class:"pill st-"+(c.status||"")}, [STATUS_LABEL[c.status] || c.status || "—"]));
+      row.appendChild(who);
+
+      var valWrap = el("div", {class:"empresa-detail-val"});
+      valWrap.appendChild(el("span", {class:"empresa-metric-label"}, [showEncerrados ? "gasto real efetivo" : "valor da causa (risco)"]));
+      valWrap.appendChild(el("b", {}, [fmtMoney(showEncerrados ? valorGastoDoProcesso(c) : c.valorProcesso)]));
+      row.appendChild(valWrap);
+
+      list.appendChild(row);
+    });
+  }
+  panel.appendChild(list);
+  return panel;
+}
+
+/* ============================= gráficos: motivos + exposição financeira ============================= */
+// "Motivo" é um texto livre (textarea), não uma categoria fixa — então o
+// ranking abaixo é heurístico: procura por palavras-chave típicas de ações
+// trabalhistas dentro do texto de cada processo (busca simples, sem
+// diferenciar maiúsculas/minúsculas; um processo pode contar para mais de uma
+// palavra-chave se mencionar mais de um tema). Não é uma extração por IA nem
+// um campo estruturado — é só um raio-x rápido dos temas mais citados.
+var MOTIVO_KEYWORDS = [
+  "Horas extras", "Acúmulo de função", "Verbas rescisórias", "Assédio moral",
+  "Insalubridade", "Periculosidade", "Equiparação salarial", "FGTS",
+  "Rescisão indireta", "Diferenças salariais", "Adicional noturno",
+  "Intervalo intrajornada", "Justa causa", "Danos morais"
+];
+function computeMotivoRanking(){
+  var counts = {};
+  // Além da contagem, guarda QUEM (funcionário — empresa) compôs cada barra,
+  // pra alimentar o tooltip ao passar o mouse — sem isso o ranking é só um
+  // número solto, sem dar pra saber a quais processos ele se refere.
+  var who = {};
+  MOTIVO_KEYWORDS.forEach(function(k){ counts[k] = 0; who[k] = []; });
+  var outros = 0, outrosWho = [];
+  cases.forEach(function(c){
+    var text = (c.motivo||"").toLowerCase();
+    if (!text) return;
+    var label = (c.funcionario||"—") + (c.empresa ? " (" + c.empresa + ")" : "");
+    var matched = false;
+    MOTIVO_KEYWORDS.forEach(function(k){
+      if (text.indexOf(k.toLowerCase()) !== -1){ counts[k]++; who[k].push(label); matched = true; }
+    });
+    if (!matched){ outros++; outrosWho.push(label); }
+  });
+  var arr = MOTIVO_KEYWORDS.map(function(k){ return {label:k, count:counts[k], who:who[k]}; }).filter(function(x){ return x.count>0; });
+  if (outros>0) arr.push({label:"Outros motivos", count:outros, who:outrosWho});
+  arr.sort(function(a,b){ return b.count-a.count; });
+  return arr.slice(0,8);
+}
+function renderMotivoRanking(){
+  var wrap = $("#motivoRankChart");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  var ranking = computeMotivoRanking();
+  if (!ranking.length){
+    wrap.appendChild(el("div", {class:"empresa-empty"}, ["Ainda não há motivos suficientes para montar um ranking."]));
+    return;
+  }
+  var max = ranking[0].count;
+  ranking.forEach(function(r){
+    // tabindex torna a barra alcançável via teclado — o tooltip também
+    // aparece em :focus-within, não só no hover do mouse.
+    var row = el("div", {class:"motivo-rank-row", tabindex:"0", "aria-label":r.label+": "+r.count+" processo(s) — "+r.who.join(", ")});
+    row.appendChild(el("div", {class:"mname", title:r.label}, [r.label]));
+    var track = el("div", {class:"mtrack"});
+    var pct = max>0 ? Math.max(4, Math.round((r.count/max)*100)) : 0;
+    track.appendChild(el("div", {class:"mfill", style:"width:"+pct+"%;"}));
+    row.appendChild(track);
+    row.appendChild(el("div", {class:"mval"}, [String(r.count)]));
+    // Tooltip/popover: lista os funcionários (e empresa) que compõem aquele
+    // número, revelado em CSS puro no hover/focus (ver .motivo-rank-row
+    // .motivo-tooltip) — sem nenhuma lib extra.
+    var tip = el("div", {class:"motivo-tooltip", role:"tooltip"});
+    tip.appendChild(el("div", {class:"motivo-tooltip-title"}, [r.label + " — " + r.count + (r.count===1?" processo":" processos")]));
+    var tipList = el("ul", {});
+    r.who.slice(0, 12).forEach(function(w){ tipList.appendChild(el("li", {}, [w])); });
+    if (r.who.length > 12) tipList.appendChild(el("li", {}, ["+ " + (r.who.length-12) + " outro(s)…"]));
+    tip.appendChild(tipList);
+    row.appendChild(tip);
+    wrap.appendChild(row);
+  });
+}
+// Donut: Risco Ativo (soma do valor da causa dos processos ainda ativos —
+// exposição em aberto, pode nunca virar gasto de verdade) vs Impacto Real
+// (gasto já efetivamente realizado nos processos encerrados — mesmo total do
+// "Gasto total real" somado entre todas as empresas). Cores emprestadas do
+// mesmo sistema de tokens do resto do painel: --info (neutro/"em aberto")
+// para o risco ainda incerto, --brand-strong (a mesma cor do "gasto real
+// total" nos cards) para o impacto já realizado — mantendo a mesma
+// associação de cor em todo o painel.
+function renderExposureCharts(groups){
+  renderMotivoRanking();
+  var wrap = $("#exposureDonut");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  var riscoAtivo = groups.reduce(function(a,g){ return a + g.riscoAtivo; }, 0);
+  var impactoReal = groups.reduce(function(a,g){ return a + g.gasto; }, 0);
+  wrap.appendChild(buildExposureDonut(riscoAtivo, impactoReal));
+}
+function buildExposureDonut(risco, impacto){
+  var total = risco + impacto;
+  var pctImpacto = total>0 ? (impacto/total*100) : 0;
+  var wrap = el("div", {class:"donut-block"});
+
+  var ringStyle = total>0
+    ? "background:conic-gradient(var(--brand-strong) 0 "+pctImpacto.toFixed(2)+"%, var(--info) "+pctImpacto.toFixed(2)+"% 100%);"
+    : "background:var(--surface);";
+  var ring = el("div", {class:"donut-ring", style:ringStyle, role:"img", "aria-label":"Risco ativo "+fmtMoney(risco)+", impacto real "+fmtMoney(impacto)});
+  var center = el("div", {class:"donut-center"});
+  // "0%" estático no centro é ambíguo (parece um erro/carregamento) sempre
+  // que ainda não há nenhum gasto real efetivado — o caso comum enquanto
+  // todos os processos concluídos ainda não tiveram acordo/condenação
+  // lançados, ou simplesmente não há nenhum processo encerrado ainda. Nesses
+  // casos o centro passa a dizer explicitamente "100% risco ativo" (e o
+  // espelho, "100% impacto real", no caso — mais raro — de não haver
+  // nenhum risco ativo em aberto) em vez de repetir um número zerado.
+  var centerBig, centerSmall;
+  if (total <= 0){ centerBig = "—"; centerSmall = "sem dados"; }
+  else if (impacto <= 0){ centerBig = "100%"; centerSmall = "risco ativo"; }
+  else if (risco <= 0){ centerBig = "100%"; centerSmall = "impacto real"; }
+  else { centerBig = Math.round(pctImpacto)+"%"; centerSmall = "impacto real"; }
+  center.appendChild(el("b", {}, [centerBig]));
+  center.appendChild(el("span", {}, [centerSmall]));
+  ring.appendChild(center);
+  wrap.appendChild(ring);
+
+  var legend = el("div", {class:"donut-legend"});
+  legend.appendChild(donutLegendItem("var(--info)", "Risco ativo (valor da causa em aberto)", risco));
+  legend.appendChild(donutLegendItem("var(--brand-strong)", "Impacto real (gasto com encerrados)", impacto));
+  wrap.appendChild(legend);
+  return wrap;
+}
+function donutLegendItem(color, label, value){
+  var row = el("div", {class:"donut-legend-row"});
+  row.appendChild(el("span", {class:"donut-swatch", style:"background:"+color+";"}));
+  var info = el("div", {class:"donut-legend-info"});
+  info.appendChild(el("div", {class:"donut-legend-label"}, [label]));
+  info.appendChild(el("div", {class:"donut-legend-value"}, [fmtMoney(value)]));
+  row.appendChild(info);
+  return row;
+}
+
+/* ============================= aba Documentos (pastas por empresa / processo) ============================= */
+var DOC_TAGS = ["Petição Inicial", "Defesa Elaborada", "Provas", "Ata/Sentença"];
+var FOLDER_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var CHEVRON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Reaproveita o mesmo agrupamento por empresa (CNPJ) do Resumo por Empresa —
+// computeEmpresaGroups() já traz `cases` por empresa — só reordena
+// alfabeticamente, que é a ordem que faz sentido para navegar uma árvore de
+// pastas (o Resumo por Empresa ordena por gasto, que não interessa aqui).
+function computeDocumentTree(){
+  return computeEmpresaGroups().sort(function(a,b){ return (a.empresa||"").localeCompare(b.empresa||"", "pt-BR"); });
+}
+
+// Quais pastas (de empresa e de processo) estão abertas na árvore da aba
+// Documentos — precisa viver fora de renderDocumentosTab() pelo mesmo motivo
+// do accordion do Resumo por Empresa: a função reconstrói a árvore inteira do
+// zero toda vez que os processos mudam (ex.: ao salvar um processo aberto a
+// partir de um documento), então sem isso as pastas abertas colapsariam de
+// volta a cada re-render — quebrando o "manter o usuário no contexto da tela
+// atual" mesmo já sem trocar de aba.
+var expandedDocFolders = {}; // chave "empresa:"+cnpjKey ou "caso:"+caseId -> true
+
+function renderDocumentosTab(){
+  var wrap = $("#documentosTree");
+  var emptyState = $("#documentosEmptyState");
+  if (!wrap) return;
+  if (!cases.length){
+    wrap.innerHTML = "";
+    wrap.style.display = "none";
+    if (emptyState) emptyState.style.display = "block";
+    return;
+  }
+  wrap.style.display = "block";
+  if (emptyState) emptyState.style.display = "none";
+
+  var groups = computeDocumentTree();
+  wrap.innerHTML = "";
+  groups.forEach(function(g){
+    wrap.appendChild(buildEmpresaDocFolder(g));
+  });
+}
+
+function buildEmpresaDocFolder(g){
+  var fileCount = g.cases.reduce(function(a,c){ return a + (c.arquivos||[]).length; }, 0);
+  var folderKey = "empresa:"+g.key;
+  var folder = el("details", {class:"doc-folder"});
+  if (expandedDocFolders[folderKey]) folder.setAttribute("open", "open");
+  folder.addEventListener("toggle", function(){
+    if (folder.open) expandedDocFolders[folderKey] = true; else delete expandedDocFolders[folderKey];
+  });
+  var summary = el("summary", {class:"doc-folder-summary"});
+  summary.appendChild(el("span", {class:"doc-folder-icon", html: FOLDER_SVG}));
+  var info = el("span", {class:"doc-folder-info"});
+  info.appendChild(el("span", {class:"doc-folder-name"}, [g.empresa]));
+  info.appendChild(el("span", {class:"doc-folder-sub"}, [g.cnpj + " · " + g.cases.length + " processo(s) · " + fileCount + " documento(s)"]));
+  summary.appendChild(info);
+  folder.appendChild(summary);
+
+  var body = el("div", {class:"doc-folder-body"});
+  g.cases.slice().sort(function(a,b){ return (a.funcionario||"").localeCompare(b.funcionario||"", "pt-BR"); }).forEach(function(c){
+    body.appendChild(buildCaseDocSubfolder(c));
+  });
+  folder.appendChild(body);
+  return folder;
+}
+
+function buildCaseDocSubfolder(c){
+  var files = c.arquivos || [];
+  var subKey = "caso:"+c.id;
+  var sub = el("details", {class:"doc-subfolder"});
+  if (expandedDocFolders[subKey]) sub.setAttribute("open", "open");
+  sub.addEventListener("toggle", function(){
+    if (sub.open) expandedDocFolders[subKey] = true; else delete expandedDocFolders[subKey];
+  });
+  var summary = el("summary", {class:"doc-subfolder-summary"});
+  summary.appendChild(el("span", {class:"doc-folder-icon small", html: FOLDER_SVG}));
+  var info = el("span", {class:"doc-folder-info"});
+  info.appendChild(el("span", {class:"doc-folder-name"}, [c.funcionario || "(sem nome)"]));
+  info.appendChild(el("span", {class:"doc-folder-sub"}, [(c.numeroProcesso || "sem nº de processo") + " · " + files.length + " documento(s)"]));
+  summary.appendChild(info);
+  sub.appendChild(summary);
+
+  var listWrap = el("div", {class:"doc-file-list"});
+  if (!files.length){
+    listWrap.appendChild(el("div", {class:"doc-file-empty"}, ["Nenhum documento anexado a este processo ainda."]));
+  } else {
+    files.forEach(function(f){ listWrap.appendChild(buildDocFileRow(f, c)); });
+  }
+  sub.appendChild(listWrap);
+  return sub;
+}
+
+function buildDocFileRow(f, c){
+  var row = el("div", {class:"filerow"});
+  row.appendChild(fileIcon(f.mime));
+  var info = el("div", {class:"finfo"});
+  info.appendChild(el("div", {class:"fname"}, [f.name]));
+  info.appendChild(el("div", {class:"fmeta"}, [fmtBytes(f.size||0) + " · " + fmtDateBR((f.uploadedAt||"").slice(0,10))]));
+  info.appendChild(el("span", {class:"doc-tag-pill" + (f.tag ? "" : " none")}, [f.tag || "Sem categoria"]));
+  row.appendChild(info);
+
+  var acts = el("div", {class:"facts"});
+  var dl = el("button", {class:"iconbtn", title:"Baixar / visualizar", type:"button", html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg>'});
+  dl.addEventListener("click", function(e){ e.stopPropagation(); downloadCaseFile(f, c.id); });
+  var openBtn = el("button", {class:"iconbtn", title:"Abrir processo", type:"button", html: CHEVRON_SVG});
+  openBtn.addEventListener("click", function(e){
+    // Abre o modal por cima da aba "Documentos" atual, sem trocar para
+    // "Processos" — o painel é um overlay fixo, então funciona em cima de
+    // qualquer aba (mesmo ajuste já aplicado ao accordion do Resumo por
+    // Empresa: abrir/fechar/salvar mantém o usuário onde estava).
+    e.stopPropagation();
+    openCase(c.id);
+  });
+  acts.appendChild(dl); acts.appendChild(openBtn);
+  row.appendChild(acts);
+  return row;
+}
+
+/* ============================= table ============================= */
+// scope: "ativos" (padrão — tudo que NÃO está em CONCLUDED_STATUSES, aba
+// principal) ou "encerrados" (só encerrado_acordo/ganho/perdido, aba separada).
+// Isto mantém a aba principal sempre limpa, só com casos em andamento — um
+// processo que muda para um status de encerramento (pelo seletor direto na
+// tabela ou pelo modal) sai dela automaticamente no próximo render.
+function filteredCases(scope){
+  scope = scope || "ativos";
+  var q = ($("#searchInput").value||"").trim().toLowerCase();
+  var st = $("#statusFilter").value;
+  var empresaCnpjQ = ($("#filterEmpresaCnpj").value||"").trim();
+  var empresaCnpjQDigits = onlyDigits(empresaCnpjQ);
+  var empresaCnpjQLower = empresaCnpjQ.toLowerCase();
+  var dateField = $("#filterDateField").value || "dataAudiencia";
+  var dateFrom = $("#filterDateFrom").value || "";
+  var dateTo = $("#filterDateTo").value || "";
+  var tipoDesl = $("#filterTipoDesligamento").value || "";
+  var statusAvancado = $("#filterStatusAvancado").value || "";
+
+  return cases.filter(function(c){
+    var concluded = !!CONCLUDED_STATUSES[c.status];
+    if (scope === "ativos" && concluded) return false;
+    if (scope === "encerrados" && !concluded) return false;
+    if (st && c.status !== st) return false;
+    if (statusAvancado){
+      if (statusAvancado === "passou_prazo"){ if (!isOverdueCase(c)) return false; }
+      else if (c.status !== statusAvancado) return false;
+    }
+    if (tipoDesl && c.tipoDesligamento !== tipoDesl) return false;
+    if (empresaCnpjQ){
+      var cnpjMatch = !!empresaCnpjQDigits && onlyDigits(c.cnpj||"").indexOf(empresaCnpjQDigits) !== -1;
+      var nomeMatch = (c.empresa||"").toLowerCase().indexOf(empresaCnpjQLower) !== -1;
+      if (!cnpjMatch && !nomeMatch) return false;
+    }
+    if (dateFrom || dateTo){
+      var dv = c[dateField];
+      if (!dv) return false;
+      if (dateFrom && dv < dateFrom) return false;
+      if (dateTo && dv > dateTo) return false;
+    }
+    if (!q) return true;
+    var hay = [c.funcionario, c.empresa, c.cnpj, c.numeroProcesso].join(" ").toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }).sort(function(a,b){
+    var da = a.dataAudiencia || "9999-99-99";
+    var db_ = b.dataAudiencia || "9999-99-99";
+    return da < db_ ? -1 : da > db_ ? 1 : 0;
+  });
+}
+
+// Monta um card/linha de processo — usado tanto na aba "Processos" (ativos)
+// quanto na aba "Encerrados": mesmo layout de 6 colunas nas duas.
+function buildProcRow(c){
+  var row = el("div", {class:"proc-row", tabindex:"0", role:"button", "aria-label":"Abrir processo de "+(c.funcionario||"—")});
+  row.addEventListener("click", function(){ openCase(c.id); });
+  row.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" "){ e.preventDefault(); openCase(c.id); } });
+
+  // Coluna 1: funcionário + tempo total de registro (admissão -> desligamento),
+  // onde antes ficava o nome do advogado (esse continua disponível no modal).
+  // Cada coluna ganha um mobile-field-label (só visível na versão em cards
+  // empilhados do celular — ver media query) com o mesmo texto do cabeçalho
+  // .proc-head daquela coluna, pra continuar dando pra saber o que é cada
+  // campo mesmo sem a linha de cabeçalho da tabela.
+  var tempo = tempoRegistroLabel(c.dataAdmissao, c.dataDesligamento);
+  row.appendChild(el("div", {}, [ mlabel("Funcionário"), el("div", {class:"emp-name"}, [c.funcionario||"—"]), tempo ? el("div",{class:"cell-sub"},[tempo]) : null ]));
+
+  // Coluna 2: empresa + CNPJ.
+  row.appendChild(el("div", {}, [ mlabel("Empresa / CNPJ"), el("div", {}, [c.empresa||"—"]), el("div", {class:"cell-sub mono"}, [c.cnpj||""]) ]));
+
+  // Coluna 3: audiência (o nº do processo saiu do resumo — continua só no modal).
+  var hCell = el("div", {});
+  hCell.appendChild(mlabel("Audiência"));
+  hCell.appendChild(hearingBadge(c.dataAudiencia));
+  row.appendChild(hCell);
+
+  // Coluna 4: valor da causa.
+  row.appendChild(el("div", {class:"value-cell"}, [ mlabel("Valor da causa"), fmtMoney(c.valorProcesso) ]));
+
+  // Coluna 5: status como seletor interativo — muda na hora, sem abrir o modal.
+  var statusWrap = el("div", {style:"display:flex; flex-direction:column; gap:6px; align-items:flex-start;"});
+  statusWrap.appendChild(mlabel("Status"));
+  var statusSelect = el("select", {class:"status-select st-"+(c.status||""), "aria-label":"Alterar status do processo de "+(c.funcionario||"—")});
+  STATUS.forEach(function(s){
+    var opt = el("option", {value:s.id}, [s.label]);
+    if (s.id === c.status) opt.setAttribute("selected","selected");
+    statusSelect.appendChild(opt);
+  });
+  // Impede que o clique no seletor também dispare a abertura do modal (o
+  // clique no restante da linha abre o processo — o seletor é a exceção).
+  statusSelect.addEventListener("click", function(e){ e.stopPropagation(); });
+  statusSelect.addEventListener("mousedown", function(e){ e.stopPropagation(); });
+  statusSelect.addEventListener("keydown", function(e){ e.stopPropagation(); });
+  statusSelect.addEventListener("change", function(e){
+    e.stopPropagation();
+    var novoStatus = statusSelect.value;
+    statusSelect.className = "status-select st-"+novoStatus; // reflete na hora, mesmo antes do save concluir
+    updateCaseStatus(c.id, novoStatus);
+  });
+  statusWrap.appendChild(statusSelect);
+  if (isOverdueCase(c)){
+    statusWrap.appendChild(el("span", {class:"pill st-overdue"}, ["Passou do prazo"]));
+  }
+  if (needsHearingResultUpdate(c)){
+    statusWrap.appendChild(el("span", {class:"pill st-pending-result"}, ["⚠️ Pendente: Atualizar resultado da audiência"]));
+  }
+  row.appendChild(statusWrap);
+
+  // Coluna 6: motivo — coluna bem mais larga, com mais linhas antes de cortar.
+  row.appendChild(el("div", {class:"reason-cell"}, [ mlabel("Motivo"), motivoList(c.motivo) ]));
+
+  return row;
+}
+
+// Sub-aba ativa da tabela de processos: "ativos" (Em andamento — separando
+// defesa / aguardando audiência) ou "encerrados" (encerrado com acordo /
+// ganho / perdido). Só existe UMA tabela na tela; a sub-aba decide o que
+// entra nela — bem diferente de manter duas tabelas em abas separadas.
+var activeProcessScope = "ativos";
+
+// Renderiza a tabela de processos para a sub-aba atualmente ativa. Mesma
+// lógica de antes para distinguir "vazio porque não há nenhum processo nessa
+// situação" de "vazio porque o filtro não bateu com nada".
+function renderProcList(){
+  var scopeCases = cases.filter(function(c){
+    var concluded = !!CONCLUDED_STATUSES[c.status];
+    return activeProcessScope === "ativos" ? !concluded : concluded;
+  });
+  var list = filteredCases(activeProcessScope);
+  var body = $("#tableBody");
+  body.innerHTML = "";
+  var reallyEmpty = casesReady && scopeCases.length===0;
+  $("#emptyStateTitle").textContent = activeProcessScope === "ativos" ? "Nenhum processo em andamento" : "Nenhum processo encerrado";
+  $("#emptyStateSub").textContent = activeProcessScope === "ativos"
+    ? "Clique em “Novo processo” para começar a organizar os casos."
+    : "Processos com status “Encerrado (com acordo)”, “Ganho” ou “Perdido” aparecem aqui.";
+  $("#emptyState").style.display = reallyEmpty ? "block" : "none";
+  $("#tableScroll").style.display = reallyEmpty ? "none" : "block";
+
+  if (!reallyEmpty && casesReady && scopeCases.length>0 && list.length===0){
+    body.appendChild(el("div", {class:"proc-empty"}, ["Nenhum processo encontrado para esse filtro."]));
+    return;
+  }
+
+  // Cada processo é um card flutuante independente (não uma linha de tabela
+  // rígida) — sem linhas divisórias pesadas, com espaçamento entre eles.
+  list.forEach(function(c){ body.appendChild(buildProcRow(c)); });
+}
+
+function renderTable(){
+  $("#loadingState").style.display = "none";
+  renderProcList();
+  updateProcessScopeSubtabs();
+}
+
+// Atualiza a contagem ao lado de cada sub-aba (Em andamento / Encerrados).
+function updateProcessScopeSubtabs(){
+  var nAtivos = cases.filter(function(c){ return !CONCLUDED_STATUSES[c.status]; }).length;
+  var nEncerrados = cases.filter(function(c){ return !!CONCLUDED_STATUSES[c.status]; }).length;
+  setSubtabLabel($("#subtabAtivos"), "Em andamento", nAtivos);
+  setSubtabLabel($("#subtabEncerrados"), "Encerrados", nEncerrados);
+}
+function setSubtabLabel(btn, text, n){
+  if (!btn) return;
+  btn.innerHTML = "";
+  btn.appendChild(document.createTextNode(text));
+  if (n>0) btn.appendChild(el("span", {class:"count-badge"}, [String(n)]));
+}
+$("#processScopeTabs").querySelectorAll(".subtab-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    var scope = btn.getAttribute("data-scope");
+    if (scope === activeProcessScope) return;
+    activeProcessScope = scope;
+    $("#processScopeTabs").querySelectorAll(".subtab-btn").forEach(function(b){
+      var isActive = b === btn;
+      b.classList.toggle("active", isActive);
+      b.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+    renderTable();
+  });
+});
+
+// Muda o status de um processo diretamente pelo seletor da tabela — sem
+// abrir o modal de edição. O registro do que mudou (audit_log) é feito
+// automaticamente pelo trigger do banco, não por este código — ver a nota
+// em "log de auditoria" mais acima.
+async function updateCaseStatus(caseId, newStatus){
+  var c = cases.find(function(cc){ return cc.id === caseId; });
+  if (!c || c.status === newStatus){ renderTable(); return; }
+  if (!db || !session){
+    toast(offlineSaveWarning(), "err");
+    renderTable(); // volta o seletor para o status real
+    return;
+  }
+  try{
+    var patch = {status:newStatus};
+    var res = await supabase.from("cases").update(patch).eq("id", caseId).select().single();
+    if (res.error) throw res.error;
+    var updated = dbRowToCase(res.data);
+    delete updated.arquivos; // preserva os anexos já carregados localmente — dbRowToCase() sempre devolve [] aqui
+    applyLocalCaseUpdate(caseId, updated);
+    toast("Status atualizado para \"" + (STATUS_LABEL[newStatus]||newStatus) + "\".", "ok");
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+    renderTable();
+  }
+}
+
+function hearingBadge(iso){
+  if (!iso) return el("span", {class:"hearing"}, [el("span",{class:"dot"}), el("span",{class:"date"},["—"])]);
+  var d = daysUntil(iso);
+  var cls = "hearing";
+  var tag = null;
+  if (d!==null){
+    if (d<0){ cls += " urgent"; tag = "atrasada"; }
+    else if (d<=3){ cls += " urgent"; tag = d===0?"hoje":(d+"d"); }
+    else if (d<=7){ cls += " soon"; tag = d+"d"; }
+  }
+  var wrap = el("span", {class:cls});
+  wrap.appendChild(el("span", {class:"dot"}));
+  wrap.appendChild(el("span", {class:"date"}, [fmtDateBR(iso)]));
+  if (tag) wrap.appendChild(el("span", {class:"tag"}, [tag]));
+  // Selo explícito "Audiência próxima" para quem está a 7 dias ou menos de
+  // acontecer (inclui hoje) — além da tag abreviada acima, que já existia.
+  if (d!==null && d>=0 && d<=7){
+    var proximaCls = "audiencia-badge " + (d<=3 ? "urgent" : "soon");
+    var bell = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    wrap.appendChild(el("span", {class:proximaCls, style:"margin-left:6px;", html: bell + "<span>Audiência próxima</span>"}));
+  }
+  return wrap;
+}
+
+/* ============================= tabs ============================= */
+document.querySelectorAll(".tab-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    var tab = btn.getAttribute("data-tab");
+    $("#tabGeral").style.display = tab==="geral" ? "" : "none";
+    $("#tabEmpresa").style.display = tab==="empresa" ? "" : "none";
+    $("#tabDocumentos").style.display = tab==="documentos" ? "" : "none";
+    // Os dados por trás das duas abas já são mantidos em dia a cada mudança
+    // (renderStats() chama renderCnpjSummary() e renderDocumentosTab()), mas
+    // renderiza de novo ao entrar na aba também, por garantia.
+    if (tab==="empresa") renderCnpjSummary();
+    if (tab==="documentos") renderDocumentosTab();
+  });
+});
+
+$("#searchInput").addEventListener("input", renderTable);
+$("#statusFilter").addEventListener("change", renderTable);
+$("#filterEmpresaCnpj").addEventListener("input", renderTable);
+$("#filterDateField").addEventListener("change", renderTable);
+$("#filterDateFrom").addEventListener("change", renderTable);
+$("#filterDateTo").addEventListener("change", renderTable);
+$("#filterTipoDesligamento").addEventListener("change", renderTable);
+$("#filterStatusAvancado").addEventListener("change", renderTable);
+
+$("#btnToggleFilters").addEventListener("click", function(){
+  var panel = $("#filtersPanel");
+  var open = panel.classList.toggle("open");
+  $("#btnToggleFilters").classList.toggle("open", open);
+  $("#filtersToggleLabel").textContent = open ? "Ocultar filtros avançados" : "Filtros avançados";
+});
+$("#btnClearFilters").addEventListener("click", function(){
+  $("#filterEmpresaCnpj").value = "";
+  $("#filterStatusAvancado").value = "";
+  $("#filterDateField").value = "dataAudiencia";
+  $("#filterDateFrom").value = "";
+  $("#filterDateTo").value = "";
+  $("#filterTipoDesligamento").value = "";
+  renderTable();
+});
+
+/* ============================= exportação CSV ============================= */
+function csvEscape(v){
+  var s = (v==null?"":String(v));
+  if (/[;"\n\r]/.test(s)) s = '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function rowsToCsv(rows){
+  // BOM UTF-8 no início para o Excel (inclusive em pt-BR) reconhecer acentos
+  // corretamente; ";" como separador porque é o padrão do Excel configurado
+  // em português (onde "," já é o separador decimal).
+  return "﻿" + rows.map(function(r){ return r.map(csvEscape).join(";"); }).join("\r\n");
+}
+async function exportCsv(filename, rows){
+  var csv = rowsToCsv(rows);
+  var blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  if (downloadsCap){
+    try{
+      await downloadsCap.save({filename: filename, data: blob});
+      toast("Arquivo CSV gerado.", "ok");
+      return;
+    }catch(e){
+      toast(friendlyDownloadError(e), "err");
+      return;
+    }
+  }
+  var url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+}
+function csvDate(iso){ return iso ? fmtDateBR(iso) : ""; }
+function buildProcessosCsvRows(list){
+  var header = ["Funcionário","Empresa","CNPJ","Nº do processo","Advogado","Data de admissão","Data de desligamento","Motivo de desligamento","Data de ajuizamento","Data da audiência","Valor da causa (R$)","Status","Houve acordo","Valor do acordo (R$)","Valor da condenação judicial (R$)","Honorários (R$)","Gasto total real (R$)","Motivo","Registrado por"];
+  var rows = [header];
+  list.forEach(function(c){
+    rows.push([
+      c.funcionario||"", c.empresa||"", c.cnpj||"", c.numeroProcesso||"", c.advogado||"",
+      csvDate(c.dataAdmissao), csvDate(c.dataDesligamento), TIPO_DESLIGAMENTO_LABEL[c.tipoDesligamento]||"",
+      csvDate(c.dataAbertura), csvDate(c.dataAudiencia),
+      c.valorProcesso!=null ? c.valorProcesso : "", STATUS_LABEL[c.status]||c.status||"",
+      c.teveAcordo ? "Sim" : "Não",
+      c.valorAcordo!=null ? c.valorAcordo : "",
+      c.valorCondenacao!=null ? c.valorCondenacao : "",
+      c.honorariosAdvocaticios!=null ? c.honorariosAdvocaticios : "",
+      valorGastoDoProcesso(c),
+      c.motivo||"", c.registradoPor||""
+    ]);
+  });
+  return rows;
+}
+function buildCnpjSummaryCsvRows(groups){
+  var header = ["Empresa","CNPJ","Processos ativos","Processos encerrados","Gasto total real (R$)"];
+  var rows = [header];
+  groups.forEach(function(g){
+    rows.push([g.empresa||"", g.cnpj||"", g.ativos, g.encerrados, g.gasto]);
+  });
+  return rows;
+}
+// Exporta a sub-aba atualmente visível (Em andamento ou Encerrados).
+$("#btnExportProcessos").addEventListener("click", function(){
+  var list = filteredCases(activeProcessScope);
+  if (!list.length){ toast("Não há processos para exportar com os filtros atuais.", "err"); return; }
+  var filename = activeProcessScope === "encerrados" ? "processos-encerrados.csv" : "processos-trabalhistas.csv";
+  exportCsv(filename, buildProcessosCsvRows(list));
+});
+$("#btnExportCnpj").addEventListener("click", function(){
+  var groups = computeCnpjGroups();
+  if (!groups.length){ toast("Não há dados para exportar.", "err"); return; }
+  exportCsv("resumo-por-empresa.csv", buildCnpjSummaryCsvRows(groups));
+});
+
+/* ============================= panel: open/close ============================= */
+function openOverlay(){ $("#overlay").classList.add("open"); $("#panel").classList.add("open"); }
+function closeOverlay(){ $("#overlay").classList.remove("open"); $("#panel").classList.remove("open"); }
+$("#overlay").addEventListener("click", closePanel);
+$("#btnClosePanel").addEventListener("click", closePanel);
+function closePanel(){ closeOverlay(); currentCaseId=null; currentFiles=[]; extractedFieldIds={}; }
+
+$("#statModalOverlay").addEventListener("click", function(e){ if (e.target.id === "statModalOverlay") closeStatModal(); });
+$("#btnCloseStatModal").addEventListener("click", closeStatModal);
+$("#btnAuditLog").addEventListener("click", openAuditModal);
+$("#auditModalOverlay").addEventListener("click", function(e){ if (e.target.id === "auditModalOverlay") closeAuditModal(); });
+$("#btnCloseAuditModal").addEventListener("click", closeAuditModal);
+document.addEventListener("keydown", function(e){
+  if (e.key !== "Escape") return;
+  if ($("#statModalOverlay").classList.contains("open")) closeStatModal();
+  else if ($("#auditModalOverlay").classList.contains("open")) closeAuditModal();
+  else if ($("#panel").classList.contains("open")) closePanel();
+});
+
+$("#btnNewCase").addEventListener("click", function(){ openCase(null); });
+
+function openCase(id){
+  currentCaseId = id;
+  extractedFieldIds = {};
+  var data = id ? (cases.find(function(c){ return c.id===id; }) || {}) : {};
+  currentFiles = (data.arquivos || []).slice();
+  $("#panelTitle").textContent = id ? "Editar processo" : "Novo processo";
+  renderPanelBody(data, !id);
+  renderPanelFoot();
+  openOverlay();
+}
+
+/* ============================= panel: form ============================= */
+function renderPanelBody(data, isNew){
+  var body = $("#panelBody");
+  body.innerHTML = "";
+
+  if (isNew){
+    body.appendChild(buildDropzone());
+  }
+
+  var aiBanner = el("div", {class:"ai-banner", id:"aiBanner", style:"display:none;"});
+  body.appendChild(aiBanner);
+
+  if (needsHearingResultUpdate(data)){
+    body.appendChild(el("div", {class:"hearing-pending-alert", role:"alert"}, ["⚠️ Pendente: Atualizar resultado da audiência"]));
+  }
+
+  /* ---- Dados do funcionário ---- */
+  body.appendChild(el("div", {class:"section-title"}, ["Dados do funcionário"]));
+
+  var g = el("div", {class:"field-group"});
+  g.appendChild(fieldFull("funcionario", "Nome do funcionário", "text", data.funcionario));
+  body.appendChild(g);
+
+  var rowAdm = el("div", {class:"field-row field-group"});
+  rowAdm.appendChild(fieldFull("dataAdmissao", "Data de admissão", "date", data.dataAdmissao));
+  rowAdm.appendChild(fieldFull("dataDesligamento", "Data de desligamento", "date", data.dataDesligamento));
+  body.appendChild(rowAdm);
+
+  var gTipoDesl = el("div", {class:"field-group"});
+  gTipoDesl.appendChild(fieldSelect("tipoDesligamento", "Tipo de desligamento", TIPO_DESLIGAMENTO, data.tipoDesligamento||""));
+  body.appendChild(gTipoDesl);
+
+  /* ---- Dados da ação ---- */
+  body.appendChild(el("div", {class:"section-title"}, ["Dados da ação"]));
+
+  var row1 = el("div", {class:"field-row field-group"});
+  row1.appendChild(fieldFull("empresa", "Empresa processada", "text", data.empresa));
+  row1.appendChild(fieldCNPJ(data.cnpj));
+  body.appendChild(row1);
+
+  var row2 = el("div", {class:"field-row field-group"});
+  row2.appendChild(fieldFull("numeroProcesso", "Número do processo", "text", data.numeroProcesso, "0000000-00.0000.0.00.0000"));
+  row2.appendChild(fieldAdvogado(data.advogado));
+  body.appendChild(row2);
+
+  var row4 = el("div", {class:"field-row field-group"});
+  row4.appendChild(fieldFull("dataAbertura", "Data de ajuizamento do processo", "date", data.dataAbertura));
+  row4.appendChild(fieldFull("dataAudiencia", "Data da audiência", "date", data.dataAudiencia));
+  body.appendChild(row4);
+
+  var gStatus = el("div", {class:"field-group"});
+  gStatus.appendChild(fieldSelect("status", "Status", STATUS, data.status||"separando_defesa"));
+  body.appendChild(gStatus);
+
+  var g2 = el("div", {class:"field-group"});
+  g2.appendChild(fieldTextarea("motivo", "Motivo resumido do processo", data.motivo));
+  body.appendChild(g2);
+
+  /* ---- Valores e honorários ---- */
+  body.appendChild(el("div", {class:"section-title"}, ["Valores e honorários"]));
+
+  var gValor = el("div", {class:"field-group"});
+  gValor.appendChild(fieldMoney("valorProcesso", "Valor da causa (R$)", data.valorProcesso));
+  body.appendChild(gValor);
+
+  var chk = el("div", {class:"checkline"});
+  var cb = el("input", {type:"checkbox", id:"f_teveAcordo"});
+  cb.checked = !!data.teveAcordo;
+  chk.appendChild(cb);
+  chk.appendChild(el("label", {for:"f_teveAcordo"}, ["Houve acordo"]));
+  body.appendChild(chk);
+
+  // Valor pago ao ex-funcionário (quando houve acordo) e valor da condenação
+  // judicial (quando não houve acordo e a Justiça condenou a empresa) nunca
+  // coexistem no mesmo processo — só um dos dois campos aparece por vez,
+  // conforme a caixa "Houve acordo". Honorários da advocacia, por outro lado,
+  // ficam sempre visíveis e editáveis: o valor pago ao advogado é digitado
+  // manualmente e não depende de ter havido acordo ou condenação.
+  var acordoWrap = el("div", {class:"field-group", id:"acordoWrap", style: data.teveAcordo?"":"display:none;"});
+  acordoWrap.appendChild(fieldMoney("valorAcordo", "Valor pago ao ex-funcionário (R$)", data.valorAcordo));
+  body.appendChild(acordoWrap);
+
+  var condenacaoWrap = el("div", {class:"field-group", id:"condenacaoWrap", style: data.teveAcordo?"display:none;":""});
+  condenacaoWrap.appendChild(fieldMoney("valorCondenacao", "Valor da condenação judicial (R$)", data.valorCondenacao));
+  body.appendChild(condenacaoWrap);
+
+  var honorWrap = el("div", {class:"field-group"});
+  honorWrap.appendChild(fieldMoney("honorariosAdvocaticios", "Honorários da advocacia (R$)", data.honorariosAdvocaticios));
+  body.appendChild(honorWrap);
+
+  cb.addEventListener("change", function(){
+    acordoWrap.style.display = cb.checked ? "" : "none";
+    condenacaoWrap.style.display = cb.checked ? "none" : "";
+  });
+
+  /* ---- Outras informações ---- */
+  body.appendChild(el("div", {class:"section-title"}, ["Outras informações"]));
+
+  var g3 = el("div", {class:"field-group"});
+  g3.appendChild(fieldTextarea("observacoes", "Observações", data.observacoes));
+  body.appendChild(g3);
+
+  var g4 = el("div", {class:"field-group"});
+  // Somente leitura: quem registra é sempre a conta autenticada no momento
+  // de salvar (onSaveCase()/ensureCaseSaved() preenchem isto de verdade) —
+  // não um texto livre digitável, para o campo não poder ser usado para se
+  // passar por outra pessoa.
+  var registradoPorAtual = data.registradoPor || (currentProfile && (currentProfile.nome || currentProfile.email)) || "";
+  g4.appendChild(fieldFull("registradoPor", "Registrado por", "text", registradoPorAtual, null, null, true));
+  body.appendChild(g4);
+
+  body.appendChild(el("div", {class:"section-title"}, ["Documentos e Peças"]));
+  var flist = el("div", {class:"filelist", id:"fileList"});
+  body.appendChild(flist);
+  renderFileList();
+
+  if (!isNew){
+    var addRow = el("div", {style:"margin-top:10px;"});
+    var input = el("input", {type:"file", id:"addFileInput", style:"display:none;"});
+    var btn = el("button", {class:"btn ghost", type:"button"}, ["+ Anexar outro arquivo"]);
+    btn.addEventListener("click", function(){ input.click(); });
+    input.addEventListener("change", function(){
+      if (input.files[0]) handleFileForCase(input.files[0], currentCaseId);
+      input.value = "";
+    });
+    addRow.appendChild(btn); addRow.appendChild(input);
+    body.appendChild(addRow);
+  }
+}
+
+function fieldFull(id, label, type, value, placeholder, step, readOnly){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_"+id}, [label]));
+  var attrs = {type:type, id:"f_"+id, value: value==null?"":value};
+  if (placeholder) attrs.placeholder = placeholder;
+  if (step) attrs.step = step;
+  if (readOnly){ attrs.readonly = "readonly"; attrs.style = "opacity:.75; cursor:default;"; }
+  wrap.appendChild(el("input", attrs));
+  return wrap;
+}
+function fieldCNPJ(value){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_cnpj"}, ["CNPJ"]));
+  var input = el("input", {type:"text", id:"f_cnpj", value: value||"", placeholder:"00.000.000/0000-00"});
+  input.addEventListener("input", function(){ input.value = maskCNPJ(input.value); });
+  wrap.appendChild(input);
+  return wrap;
+}
+// Campo "Advogado responsável" com alerta de recorrência — pílula retrátil:
+// fechada mostra só "⚠️ Advogado recorrente (N)"; ao clicar, expande
+// suavemente mostrando nominalmente os ex-funcionários dos outros processos
+// já cadastrados com o mesmo advogado.
+function fieldAdvogado(value){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_advogado"}, ["Advogado responsável"]));
+  var input = el("input", {type:"text", id:"f_advogado", value: value||""});
+  wrap.appendChild(input);
+
+  var expanded = false;
+  var badge = el("div", {id:"advogadoAlertBadge", class:"advogado-alert"});
+  var toggleBtn = el("button", {type:"button", class:"advogado-alert-toggle", "aria-expanded":"false"});
+  var detailInner = el("div", {class:"advogado-alert-detail-inner"}, [ el("p", {}) ]);
+  var detail = el("div", {class:"advogado-alert-detail"}, [detailInner]);
+  badge.appendChild(toggleBtn);
+  badge.appendChild(detail);
+  wrap.appendChild(badge);
+
+  function refreshAdvogadoAlert(){
+    var matches = casesPorAdvogado(input.value, currentCaseId);
+    if (matches.length === 0){
+      badge.style.display = "none";
+      expanded = false;
+      badge.classList.remove("open");
+      return;
+    }
+    badge.style.display = "block";
+    badge.classList.toggle("open", expanded);
+    toggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggleBtn.innerHTML = "";
+    toggleBtn.appendChild(document.createTextNode("⚠️ Advogado recorrente (" + matches.length + ")"));
+    toggleBtn.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    var nomes = matches.map(function(c){ return c.funcionario || "(sem nome)"; });
+    var rotulo = matches.length === 1 ? "o processo de" : "os processos de";
+    detailInner.querySelector("p").textContent = "Este advogado também representa " + rotulo + ": " + nomes.join(", ") + ".";
+  }
+  toggleBtn.addEventListener("click", function(){
+    expanded = !expanded;
+    refreshAdvogadoAlert();
+  });
+  input.addEventListener("input", function(){
+    expanded = false; // uma nova contagem começa fechada, pra não "vazar" o detalhamento de um advogado anterior
+    refreshAdvogadoAlert();
+  });
+  refreshAdvogadoAlert(); // já mostra o alerta (fechado) ao abrir um processo existente com advogado preenchido
+  return wrap;
+}
+function fieldMoney(id, label, value){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_"+id}, [label]));
+  var hasValue = value!=null && value!=="";
+  var input = el("input", {type:"text", inputmode:"decimal", id:"f_"+id, value: hasValue ? fmtMoney(value) : "", placeholder:"R$ 0,00"});
+  input.addEventListener("input", function(){ maskMoneyInput(input); });
+  input.addEventListener("blur", function(){ finalizeMoneyInput(input); });
+  wrap.appendChild(input);
+  return wrap;
+}
+function fieldSelect(id, label, options, value){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_"+id}, [label]));
+  var sel = el("select", {id:"f_"+id});
+  options.forEach(function(o){
+    var opt = el("option", {value:o.id}, [o.label]);
+    if (o.id===value) opt.setAttribute("selected","selected");
+    sel.appendChild(opt);
+  });
+  wrap.appendChild(sel);
+  return wrap;
+}
+function fieldTextarea(id, label, value){
+  var wrap = el("div", {class:"field-ai"});
+  wrap.appendChild(el("label", {for:"f_"+id}, [label]));
+  wrap.appendChild(el("textarea", {id:"f_"+id}, [value||""]));
+  return wrap;
+}
+
+function markFieldFilledByAI(id){
+  var wrap = document.getElementById("f_"+id);
+  if (wrap && wrap.closest) { var box = wrap.closest(".field-ai"); if (box) box.classList.add("filled"); }
+}
+
+function renderPanelFoot(){
+  var foot = $("#panelFoot");
+  foot.innerHTML = "";
+  if (currentCaseId){
+    var caseObj = cases.find(function(c){ return c.id === currentCaseId; });
+    // O botão só aparece para quem tem permissão de exclusão de verdade
+    // (perfil ADM — ver PERMISSIONS.canDelete/isAdmin() acima), espelhando a
+    // política de RLS "cases: excluir somente ADM" do banco. doDeleteCase()
+    // repete essa mesma checagem antes de excluir — o botão sumir da tela é
+    // só uma conveniência, a permissão real é sempre decidida pelo Postgres.
+    if (canDeleteCase(caseObj)){
+      var delBtn = el("button", {class:"btn danger", type:"button"}, ["Excluir processo"]);
+      delBtn.addEventListener("click", confirmDeleteCase);
+      foot.appendChild(delBtn);
+    } else {
+      foot.appendChild(el("span", {style:"font-size:12px;color:var(--ink-faint);"}, ["Somente administradores podem excluir."]));
+    }
+  } else {
+    foot.appendChild(el("span", {}));
+  }
+  var saveBtn = el("button", {class:"btn primary", type:"button"}, [currentCaseId ? "Salvar alterações" : "Salvar processo"]);
+  saveBtn.addEventListener("click", function(e){ onSaveCase(e.currentTarget); });
+  foot.appendChild(saveBtn);
+}
+
+/* ============================= save / delete ============================= */
+function readForm(){
+  // Sanitização defensiva na entrada (remove caracteres de controle, limita
+  // tamanho) — camada extra além da renderização já segura por padrão
+  // (texto de processo sempre vira nó de texto puro, nunca HTML; veja
+  // sanitizeText() e el() acima).
+  function v(id, maxLen){ var e = document.getElementById("f_"+id); return e ? sanitizeText(e.value, maxLen || 300) : ""; }
+  var data = {
+    funcionario: v("funcionario"),
+    dataAdmissao: v("dataAdmissao") || null,
+    dataDesligamento: v("dataDesligamento") || null,
+    tipoDesligamento: v("tipoDesligamento") || "",
+    empresa: v("empresa"),
+    cnpj: v("cnpj", 30),
+    numeroProcesso: v("numeroProcesso", 60),
+    advogado: v("advogado"),
+    dataAudiencia: v("dataAudiencia") || null,
+    valorProcesso: parseMoneyInput("valorProcesso"),
+    dataAbertura: v("dataAbertura") || null,
+    status: v("status") || "separando_defesa",
+    motivo: v("motivo", 2000),
+    teveAcordo: !!document.getElementById("f_teveAcordo").checked,
+    valorAcordo: parseMoneyInput("valorAcordo"),
+    valorCondenacao: parseMoneyInput("valorCondenacao"),
+    honorariosAdvocaticios: parseMoneyInput("honorariosAdvocaticios"),
+    observacoes: v("observacoes", 4000),
+    registradoPor: v("registradoPor", 100)
+  };
+  return data;
+}
+
+// Patches the in-memory list + re-renders immediately, instead of waiting on the
+// realtime listener to come back around — so the table and the top cards always
+// reflect a save the instant it succeeds, with no dependency on subscription timing.
+// Called only once a real write has actually succeeded — proof the shared
+// database truly works right now — so it's safe to drop the example data
+// and its banner. Never called on a failed write, so a save that errors out
+// leaves the demo view exactly as it was.
+// Reflete uma mudança já confirmada pelo banco na lista em memória e
+// redesenha a tela na hora — em vez de esperar o evento de tempo real
+// (Realtime) voltar, que tem uma latência perceptível. Quando o evento em
+// tempo real chegar logo depois (reloadCasesFromDb()), ele só substitui a
+// lista inteira pelos mesmos dados — inofensivo.
+function applyLocalCaseUpdate(id, data){
+  var idx = cases.findIndex(function(c){ return c.id === id; });
+  if (idx >= 0){ cases[idx] = Object.assign({}, cases[idx], data, {id: id}); }
+  else { cases.push(Object.assign({}, data, {id: id})); }
+  renderStats();
+  renderTable();
+}
+
+async function onSaveCase(btn){
+  var data = readForm();
+  if (!data.funcionario){
+    toast("Informe o nome do funcionário antes de salvar.", "err");
+    return;
+  }
+  var duplicate = findDuplicateByNumeroProcesso(data.numeroProcesso, currentCaseId);
+  if (duplicate){
+    toast("Este processo já está cadastrado no sistema! (Nº " + data.numeroProcesso + (duplicate.funcionario ? " — " + duplicate.funcionario : "") + ")", "err");
+    return;
+  }
+  if (!supabase || !session){
+    toast(offlineSaveWarning(), "err");
+    return;
+  }
+  // "Registrado por" agora é sempre o nome da conta autenticada — não um
+  // texto livre digitado no formulário (o campo continua existindo na tela
+  // só para mostrar quem cadastrou; ver readForm()/caseToDbRow()).
+  data.registradoPor = (currentProfile && (currentProfile.nome || currentProfile.email)) || session.user.email || "";
+
+  try{
+    if (btn) btn.disabled = true;
+    var row = caseToDbRow(data);
+    if (currentCaseId){
+      var resUpd = await supabase.from("cases").update(row).eq("id", currentCaseId).select().single();
+      if (resUpd.error) throw resUpd.error;
+      var updated = dbRowToCase(resUpd.data);
+      delete updated.arquivos; // preserva os anexos já carregados localmente
+      applyLocalCaseUpdate(currentCaseId, updated);
+      toast("Processo atualizado.", "ok");
+    } else {
+      row.registrado_por = session.user.id;
+      var resIns = await supabase.from("cases").insert(row).select().single();
+      if (resIns.error) throw resIns.error;
+      currentCaseId = resIns.data.id;
+      applyLocalCaseUpdate(currentCaseId, dbRowToCase(resIns.data));
+      toast("Processo cadastrado.", "ok");
+      renderPanelFoot();
+    }
+    closePanel();
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+  }finally{
+    if (btn) btn.disabled = false;
+  }
+}
+
+function confirmDeleteCase(){
+  var foot = $("#panelFoot");
+  foot.innerHTML = "";
+  foot.appendChild(el("div", {class:"confirm-inline"}, [
+    el("span", {style:"font-size:13px;color:var(--danger);"}, ["Excluir este processo e seus arquivos?"])
+  ]));
+  var yes = el("button", {class:"btn danger"}, ["Sim, excluir"]);
+  var no = el("button", {class:"btn ghost"}, ["Cancelar"]);
+  yes.addEventListener("click", doDeleteCase);
+  no.addEventListener("click", renderPanelFoot);
+  foot.appendChild(no); foot.appendChild(yes);
+}
+
+async function doDeleteCase(){
+  if (!currentCaseId || !supabase || !session) return;
+  var idToDelete = currentCaseId;
+  var caseObj = cases.find(function(c){ return c.id === idToDelete; });
+  // Checagem só de conveniência de tela — quem realmente decide se a
+  // exclusão é permitida é a política de RLS "cases: excluir somente ADM"
+  // no banco (supabase_schema.sql). Um usuário sem perfil ADM que de algum
+  // jeito disparasse esta chamada mesmo assim receberia um erro de
+  // permissão do próprio Postgres (código 42501).
+  if (!canDeleteCase(caseObj)){
+    toast("Somente usuários com perfil \"ADM\" podem excluir processos.", "err");
+    renderPanelFoot();
+    return;
+  }
+  var foot = $("#panelFoot");
+  foot.innerHTML = "";
+  foot.appendChild(el("span", {style:"font-size:12.5px;color:var(--ink-faint);"}, ["Excluindo…"]));
+  try{
+    // Busca os anexos ANTES de apagar a linha do processo: o "on delete
+    // cascade" do banco remove os metadados em case_files junto com o
+    // processo, então depois disso não haveria mais como saber quais
+    // arquivos existiam no Storage para removê-los também.
+    var filesRes = await supabase.from("case_files").select("storage_path").eq("case_id", idToDelete);
+    var paths = (!filesRes.error && filesRes.data) ? filesRes.data.map(function(r){ return r.storage_path; }) : [];
+
+    var delRes = await supabase.from("cases").delete().eq("id", idToDelete);
+    if (delRes.error) throw delRes.error;
+
+    if (paths.length){
+      try{ await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove(paths); }
+      catch(e){ console.error("Falha ao remover arquivos do Storage do processo "+idToDelete, e); }
+    }
+
+    cases = cases.filter(function(c){ return c.id !== idToDelete; });
+    renderStats();
+    renderTable();
+    toast("Processo excluído.", "ok");
+    closePanel();
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+    renderPanelFoot();
+  }
+}
+
+/* ============================= files: list / upload / download / delete ============================= */
+function fileIcon(mime){
+  return el("span", {class:"ficon"}, [ el("span",{html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M14 2v6h6"/></svg>'}) ]);
+}
+
+function renderFileList(){
+  var wrap = document.getElementById("fileList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!currentFiles.length){
+    wrap.appendChild(el("div", {style:"font-size:12.5px;color:var(--ink-faint);"}, ["Nenhum documento anexado ainda."]));
+    return;
+  }
+  currentFiles.forEach(function(f){
+    var row = el("div", {class:"filerow"});
+    row.appendChild(fileIcon(f.mime));
+    var info = el("div", {class:"finfo"});
+    info.appendChild(el("div", {class:"fname"}, [f.name]));
+    info.appendChild(el("div", {class:"fmeta"}, [fmtBytes(f.size||0) + " · " + fmtDateBR((f.uploadedAt||"").slice(0,10))]));
+    var tagSel = el("select", {class:"ftag-select", "aria-label":"Categoria do documento "+f.name});
+    tagSel.appendChild(el("option", {value:""}, ["Sem categoria"]));
+    DOC_TAGS.forEach(function(t){
+      var opt = el("option", {value:t}, [t]);
+      if (f.tag === t) opt.setAttribute("selected", "selected");
+      tagSel.appendChild(opt);
+    });
+    tagSel.addEventListener("click", function(e){ e.stopPropagation(); });
+    tagSel.addEventListener("change", function(){ updateCaseFileTag(f, tagSel.value); });
+    info.appendChild(tagSel);
+    row.appendChild(info);
+    var acts = el("div", {class:"facts"});
+    var dl = el("button", {class:"iconbtn", title:"Baixar / visualizar", type:"button", html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke-linecap="round" stroke-linejoin="round"/></svg>'});
+    dl.addEventListener("click", function(){ downloadCaseFile(f); });
+    var rm = el("button", {class:"iconbtn", title:"Remover", type:"button", html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6" stroke-linecap="round"/></svg>'});
+    rm.addEventListener("click", function(){ removeCaseFile(f); });
+    acts.appendChild(dl); acts.appendChild(rm);
+    row.appendChild(acts);
+    wrap.appendChild(row);
+  });
+}
+
+// Muda a categoria (tag) de um documento já anexado — Petição Inicial,
+// Defesa Elaborada, Provas, Ata/Sentença, ou "Sem categoria" — gravando
+// direto na coluna "tag" da linha correspondente em public.case_files.
+async function updateCaseFileTag(f, tag){
+  f.tag = tag || "";
+  applyLocalCaseUpdate(currentCaseId, {arquivos: currentFiles.slice()});
+  if (!supabase || !currentCaseId) return;
+  try{
+    var res = await supabase.from("case_files").update({tag: f.tag}).eq("id", f.id);
+    if (res.error) throw res.error;
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+  }
+}
+
+function newFileId(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "f-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+// O caminho no Storage é só um identificador técnico (não precisa ser
+// bonito) — sanitizar o nome original evita caracteres que alguns
+// navegadores/backends tratam mal em caminhos de arquivo (espaços, acentos,
+// barras). O nome de exibição (f.name) continua guardando o nome original
+// sem alteração, na tabela case_files.
+function sanitizeFileNameForPath(name){
+  return String(name||"arquivo").replace(/[^a-zA-Z0-9_.-]+/g, "_").slice(-140);
+}
+
+async function ensureCaseSaved(){
+  if (currentCaseId) return currentCaseId;
+  if (!supabase || !session) throw new Error(offlineSaveWarning());
+  var data = readForm();
+  if (!data.funcionario) data.funcionario = "(sem nome ainda)";
+  data.registradoPor = (currentProfile && (currentProfile.nome || currentProfile.email)) || session.user.email || "";
+  var row = caseToDbRow(data);
+  row.registrado_por = session.user.id;
+  var res = await supabase.from("cases").insert(row).select().single();
+  if (res.error) throw res.error;
+  currentCaseId = res.data.id;
+  applyLocalCaseUpdate(currentCaseId, dbRowToCase(res.data));
+  $("#panelTitle").textContent = "Editar processo";
+  renderPanelFoot();
+  return currentCaseId;
+}
+
+async function handleFileForCase(file, caseIdHint){
+  if (file.size > MAX_FILE_BYTES){
+    toast("Arquivo muito grande (máx. 15 MB): " + file.name, "err");
+    return;
+  }
+  if (!supabase || !session){
+    toast(offlineSaveWarning(), "err");
+    return;
+  }
+  var progressNote = document.getElementById("uploadProgress");
+  try{
+    var caseId = caseIdHint || await ensureCaseSaved();
+    if (progressNote) progressNote.textContent = "Enviando " + file.name + "…";
+    var path = caseId + "/" + newFileId() + "-" + sanitizeFileNameForPath(file.name);
+    // Upload direto do arquivo original para o Storage (bucket privado) — sem
+    // conversão para base64/pedaços: o navegador já sabe enviar um File/Blob
+    // binário nativamente, então isso é mais rápido e usa bem menos memória
+    // que a técnica antiga de fatiar o arquivo em documentos de banco.
+    var upRes = await supabase.storage.from(SUPABASE_STORAGE_BUCKET).upload(path, file, {
+      contentType: file.type || "application/octet-stream", upsert: false
+    });
+    if (upRes.error) throw upRes.error;
+    var insRes = await supabase.from("case_files").insert({
+      case_id: caseId, storage_path: path, name: file.name,
+      mime: file.type || "application/octet-stream", size: file.size, uploaded_by: session.user.id
+    }).select().single();
+    if (insRes.error) throw insRes.error;
+    var meta = dbFileRowToFile(insRes.data);
+    currentFiles.push(meta);
+    renderFileList();
+    applyLocalCaseUpdate(caseId, {arquivos: currentFiles.slice()});
+    toast("Arquivo anexado.", "ok");
+    if (progressNote) progressNote.textContent = "";
+    return {caseId: caseId, file: meta};
+  }catch(e){
+    if (progressNote) progressNote.textContent = "";
+    toast(friendlyDbError(e), "err");
+  }
+}
+
+async function downloadCaseFile(f){
+  if (!supabase) return;
+  try{
+    // URL assinada e temporária (expira em 60s) em vez de tornar o arquivo
+    // público — pedido explícito do usuário ("Storage Seguro"): o bucket
+    // "documentos-trabalhistas" é privado, e cada visualização/download
+    // gera um link novo, válido só por 1 minuto, em vez de expor os
+    // documentos com uma URL pública fixa.
+    var res = await supabase.storage.from(SUPABASE_STORAGE_BUCKET).createSignedUrl(f.storagePath, 60);
+    if (res.error) throw res.error;
+    window.open(res.data.signedUrl, "_blank");
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+  }
+}
+
+async function removeCaseFile(f){
+  if (!supabase || !currentCaseId) return;
+  if (!confirm('Remover o arquivo "'+f.name+'"?')) return;
+  try{
+    var rmRes = await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([f.storagePath]);
+    if (rmRes.error) throw rmRes.error;
+    var delRes = await supabase.from("case_files").delete().eq("id", f.id);
+    if (delRes.error) throw delRes.error;
+    currentFiles = currentFiles.filter(function(x){ return x.id!==f.id; });
+    renderFileList();
+    applyLocalCaseUpdate(currentCaseId, {arquivos: currentFiles.slice()});
+    toast("Arquivo removido.", "ok");
+  }catch(e){
+    toast(friendlyDbError(e), "err");
+  }
+}
+
+/* ============================= dropzone + AI extraction ============================= */
+function buildDropzone(){
+  var zone = el("div", {class:"dropzone", id:"dropzone"});
+  zone.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+    '<p>Arraste a petição/documento aqui ou <span class="browse" id="browseLink">escolha um arquivo</span></p>'+
+    '<p class="small">PDF ou imagem · até 15 MB · os campos abaixo são preenchidos automaticamente e podem ser editados</p>'+
+    '<div class="upload-progress" id="uploadProgress"></div>';
+  var input = el("input", {type:"file", id:"dzInput", accept:".pdf,image/*", style:"display:none;"});
+  zone.appendChild(input);
+
+  zone.addEventListener("dragover", function(e){ e.preventDefault(); zone.classList.add("drag"); });
+  zone.addEventListener("dragleave", function(){ zone.classList.remove("drag"); });
+  zone.addEventListener("drop", function(e){
+    e.preventDefault(); zone.classList.remove("drag");
+    if (e.dataTransfer.files[0]) onDropzoneFile(e.dataTransfer.files[0], zone, input);
+  });
+  setTimeout(function(){
+    var link = document.getElementById("browseLink");
+    if (link) link.addEventListener("click", function(){ input.click(); });
+    input.addEventListener("change", function(){ if (input.files[0]) onDropzoneFile(input.files[0], zone, input); });
+  }, 0);
+  return zone;
+}
+
+async function onDropzoneFile(file, zone, input){
+  zone.classList.add("busy");
+  var banner = document.getElementById("aiBanner");
+  showAiBanner(banner, "spin", "Lendo o documento com IA…");
+  try{
+    var extracted = await extractFieldsFromFile(file);
+    if (extracted){
+      applyExtractedToForm(extracted);
+      var dup = extracted.numeroProcesso && findDuplicateByNumeroProcesso(extracted.numeroProcesso, currentCaseId);
+      if (dup){
+        showAiBanner(banner, "warn", "Este processo já está cadastrado no sistema! (Nº " + extracted.numeroProcesso + (dup.funcionario ? " — " + dup.funcionario : "") + ")");
+        toast("Este processo já está cadastrado no sistema!", "err");
+      } else {
+        showAiBanner(banner, "ok", "Campos preenchidos automaticamente — revise antes de salvar.");
+      }
+    } else {
+      hideAiBanner(banner);
+    }
+  }catch(e){
+    console.error(e);
+    hideAiBanner(banner);
+  }
+  // attach the file to the case regardless of extraction outcome
+  var res = await handleFileForCase(file, currentCaseId);
+  zone.classList.remove("busy");
+  input.value = "";
+}
+
+function showAiBanner(banner, kind, text){
+  if (!banner) return;
+  banner.style.display = "flex";
+  banner.classList.toggle("warn", kind==="warn");
+  var icon = kind==="spin"
+    ? '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7" stroke-linecap="round"/></svg>'
+    : kind==="warn"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  banner.innerHTML = icon + "<span>"+escapeHtml(text)+"</span>";
+}
+function hideAiBanner(banner){ if (banner) banner.style.display = "none"; }
+
+// Tamanho máximo de arquivo aceito para leitura automática por IA — bem menor
+// que o limite de anexo normal (15 MB, ver MAX_FILE_BYTES), porque este
+// arquivo vira base64 (~33% maior) dentro do corpo de uma requisição para
+// uma Vercel Function, que recusa qualquer corpo acima de 4,5 MB. Um arquivo
+// maior que isso ainda pode ser ANEXADO normalmente (vai direto para o
+// Supabase Storage, sem passar pela função) — só o preenchimento automático
+// fica indisponível para ele.
+var AI_EXTRACT_MAX_BYTES = 3 * 1024 * 1024;
+
+// Lê o arquivo como base64 puro (sem o prefixo "data:...;base64," que
+// FileReader.readAsDataURL adiciona) — é o formato que a função /api/extract
+// espera para repassar ao Gemini como "inline_data".
+function fileToBase64Plain(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var result = String(reader.result || "");
+      var comma = result.indexOf(",");
+      resolve(comma === -1 ? result : result.slice(comma + 1));
+    };
+    reader.onerror = function(){ reject(reader.error || new Error("Falha ao ler o arquivo")); };
+    reader.readAsDataURL(file);
+  });
+}
+
+// A leitura automática roda inteiramente num servidor (a função
+// /api/extract, hospedada junto com o painel na Vercel — veja
+// SETUP-GEMINI.md), que chama a API do Gemini usando uma chave guardada
+// como variável de ambiente (GEMINI_API_KEY). O navegador nunca vê essa
+// chave. A função exige o token da sessão Supabase atual (accessToken
+// abaixo) e recusa a chamada sem uma sessão válida — sem isso, qualquer
+// pessoa que descobrisse o endereço da função poderia gerar chamadas à API
+// do Gemini (e consumir sua cota) sem nem estar logada no painel.
+async function extractFieldsFromFile(file){
+  var isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  var isImage = file.type.indexOf("image/") === 0;
+  if (!isPdf && !isImage) return null; // tipo não suportado para preenchimento automático (ex.: .docx) — o anexo em si continua funcionando normalmente
+  if (!session){
+    return null; // sem sessão não deveria nem chegar aqui — o painel inteiro fica bloqueado sem login
+  }
+  if (file.size > AI_EXTRACT_MAX_BYTES){
+    toast("Arquivo grande demais para leitura automática por IA (máx. " + fmtBytes(AI_EXTRACT_MAX_BYTES) + ") — preencha manualmente. O anexo em si pode ter até " + fmtBytes(MAX_FILE_BYTES) + " normalmente.", "");
+    return null;
+  }
+  try{
+    var base64 = await fileToBase64Plain(file);
+    var res = await fetch("/api/extract", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        fileBase64: base64,
+        mimeType: isPdf ? "application/pdf" : file.type,
+        accessToken: session.access_token
+      })
+    });
+    var body = await res.json().catch(function(){ return null; });
+    if (!res.ok){
+      toast((body && body.error) || "Não foi possível ler o documento automaticamente. Preencha os campos manualmente.", "");
+      return null;
+    }
+    return normalizeExtracted(body && body.fields);
+  }catch(e){
+    console.error("extração automática por IA falhou", e);
+    toast("Não foi possível contatar o serviço de leitura automática agora. Preencha os campos manualmente.", "");
+    return null;
+  }
+}
+
+function normalizeExtracted(data){
+  if (!data || typeof data !== "object") return null;
+  function s(v){ return (v===null||v===undefined) ? "" : String(v).trim(); }
+  function n(v){ if (v===null||v===undefined||v==="") return ""; var num = Number(v); return isNaN(num) ? "" : num; }
+  function d(v){ if (!v) return ""; var m = String(v).match(/(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : ""; }
+  return {
+    funcionario: s(data.funcionario),
+    empresa: s(data.empresa),
+    cnpj: s(data.cnpj) ? maskCNPJ(s(data.cnpj)) : "",
+    numeroProcesso: s(data.numeroProcesso),
+    dataAudiencia: d(data.dataAudiencia),
+    dataAbertura: d(data.dataAbertura),
+    valorProcesso: n(data.valorProcesso),
+    advogado: s(data.advogado),
+    motivo: s(data.motivo)
+  };
+}
+
+function applyExtractedToForm(ex){
+  Object.keys(ex).forEach(function(key){
+    if (ex[key]==="" || ex[key]==null) return;
+    var input = document.getElementById("f_"+key);
+    if (!input) return;
+    if (!input.value){
+      // Campos de moeda (ex.: valorProcesso) chegam da IA como Number puro em
+      // formato en-US (ex.: 95313.51). Preencher o input diretamente com esse
+      // valor (String(95313.51) = "95313.51") deixava um ponto decimal "cru"
+      // no campo; se o formulário fosse salvo sem a pessoa reabrir/editar o
+      // campo (o que dispararia a máscara), esse ponto era descartado como
+      // separador de milhar por parseMoneyInput() e o valor virava 100x maior
+      // (95313.51 → 9531351) — foi esse o bug que corrompeu o valor do
+      // processo do Rodrigo Galvão. Agora formatamos como moeda BR aqui, do
+      // mesmo jeito que fieldMoney() já faz ao abrir um processo existente.
+      input.value = AUDIT_MONEY_FIELDS[key] ? fmtMoney(ex[key]) : ex[key];
+      markFieldFilledByAI(key);
+    }
+  });
+}
+
+/* ============================= boot ============================= */
+initSupabaseAuth();
+
+})();
+</script>
+</body>
+</html>
